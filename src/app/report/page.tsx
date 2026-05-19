@@ -154,14 +154,16 @@ export default function ReportPage() {
                   </label>
                 </div>
               ) : (
-                <label style={{ display: 'block', background: 'linear-gradient(135deg,#EF4444,#F97316)', color: 'white', padding: '48px 16px', borderRadius: '16px', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📸</div>
-                  <div>{t('report', 'choosePhoto')}</div>
-                  <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
-                </label>
-                <p style={{ color: '#64748B', fontSize: '12px', textAlign: 'center', marginTop: '10px', lineHeight: '1.5' }}>
-                  📍 {t('report', 'locationConsent')}
-                </p>
+                <>
+                  <label style={{ display: 'block', background: 'linear-gradient(135deg,#EF4444,#F97316)', color: 'white', padding: '48px 16px', borderRadius: '16px', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>📸</div>
+                    <div>{t('report', 'choosePhoto')}</div>
+                    <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
+                  </label>
+                  <p style={{ color: '#64748B', fontSize: '12px', textAlign: 'center', marginTop: '10px', lineHeight: '1.5' }}>
+                    📍 {t('report', 'locationConsent')}
+                  </p>
+                </>
               )}
             </div>
           )}
