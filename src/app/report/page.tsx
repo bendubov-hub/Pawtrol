@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { db, storage, auth } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 import { useLang } from '@/lib/lang-context';
@@ -31,6 +31,17 @@ export default function ReportPage() {
       const reader = new FileReader();
       reader.onload = (e) => setPreview(e.target?.result as string);
       reader.readAsDataURL(file);
+      // auto-request location as soon as photo is chosen
+      if (!location && navigator.geolocation) {
+        setLocationLoading(true);
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => {
+            setLocation(`${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`);
+            setLocationLoading(false);
+          },
+          () => setLocationLoading(false)
+        );
+      }
     }
   };
 
@@ -55,13 +66,14 @@ export default function ReportPage() {
     if (!image || !location || (!animalType && !customAnimal)) return;
     setLoading(true);
     try {
-      const filename = `reports/${Date.now()}_${image.name}`;
-      await uploadBytes(ref(storage, filename), image);
+      const storageRef = ref(storage, `reports/${Date.now()}_${image.name}`);
+      await uploadBytes(storageRef, image);
+      const imageUrl = await getDownloadURL(storageRef);
       await addDoc(collection(db, 'reports'), {
         animalType: customAnimal || animalType,
         location, description,
         timestamp: serverTimestamp(),
-        imageUrl: filename,
+        imageUrl,
         status: 'pending',
         reportedBy: auth.currentUser?.uid || null,
       });
@@ -147,6 +159,9 @@ export default function ReportPage() {
                   <div>{t('report', 'choosePhoto')}</div>
                   <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
                 </label>
+                <p style={{ color: '#64748B', fontSize: '12px', textAlign: 'center', marginTop: '10px', lineHeight: '1.5' }}>
+                  📍 {t('report', 'locationConsent')}
+                </p>
               )}
             </div>
           )}
