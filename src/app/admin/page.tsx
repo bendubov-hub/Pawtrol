@@ -1,0 +1,626 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { signOut } from 'firebase/auth';
+import { collection, onSnapshot, doc, updateDoc, setDoc, query, orderBy } from 'firebase/firestore';
+import { useLang } from '@/lib/lang-context';
+import { auth, db } from '@/lib/firebase';
+import { useAuth } from '@/lib/auth-context';
+
+type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org';
+
+const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
+  pending:     { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+  approved:    { color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+  rejected:    { color: '#EF4444', bg: 'rgba(239,68,68,0.15)' },
+  in_progress: { color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
+  rescued:     { color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+  closed:      { color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'ממתין', approved: 'מאושר', rejected: 'נדחה',
+  in_progress: 'בטיפול', rescued: 'הוצל', closed: 'נסגר',
+};
+
+export default function AdminPage() {
+  const { user, profile, loading } = useAuth();
+  const { t } = useLang();
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>('applications');
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [volunteers, setVolunteers] = useState<any[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [expandedApp, setExpandedApp] = useState<string | null>(null);
+  const [inviteSent, setInviteSent] = useState<Record<string, boolean>>({});
+
+  // Add org form
+  const [orgForm, setOrgForm] = useState({
+    name: '', email: '', phone: '', city: '', address: '',
+    description: '', website: '', animalTypes: [] as string[],
+    registrationNumber: '',
+  });
+  const [orgFormLoading, setOrgFormLoading] = useState(false);
+  const [orgFormDone, setOrgFormDone] = useState('');
+  const [orgFormError, setOrgFormError] = useState('');
+
+  const ANIMAL_TYPES = ['🐕 כלבים','🐱 חתולים','🐦 ציפורים','🐰 ארנבות','🐢 צבים','🐠 דגים','🦴 כלליים'];
+  const CITIES = ['תל אביב','ירושלים','חיפה','ראשון לציון','פתח תקווה','אשדוד','נתניה','באר שבע','בני ברק','רמת גן','חולון','בת ים','רחובות','אשקלון','הרצליה','כפר סבא','מודיעין','רעננה','לוד','רמלה','אחר'];
+
+  useEffect(() => {
+    if (!loading && (!user || profile?.role !== 'admin')) {
+      router.push('/auth/login');
+    }
+  }, [user, profile, loading, router]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const unsub1 = onSnapshot(query(collection(db, 'organizations'), orderBy('createdAt', 'desc')), snap => {
+      setOrganizations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    const unsub2 = onSnapshot(query(collection(db, 'volunteers'), orderBy('createdAt', 'desc')), snap => {
+      setVolunteers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    const unsub3 = onSnapshot(query(collection(db, 'reports'), orderBy('timestamp', 'desc')), snap => {
+      setReports(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    const unsub4 = onSnapshot(query(collection(db, 'volunteer_applications'), orderBy('submittedAt', 'desc')), snap => {
+      setApplications(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+  }, [user]);
+
+  const update = async (collection_: string, id: string, data: object) => {
+    setUpdatingId(id);
+    await updateDoc(doc(db, collection_, id), data);
+    setUpdatingId(null);
+  };
+
+  const approveAndInvite = async (app: any) => {
+    setUpdatingId(app.id);
+    // Generate token
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+
+    // Save invite to Firestore
+    await setDoc(doc(db, 'invites', token), {
+      token,
+      applicationId: app.id,
+      email: app.email,
+      fullName: app.fullName,
+      phone: app.phone,
+      city: app.city,
+      address: app.address,
+      hasCar: app.hasCar,
+      availableHours: app.availableHours,
+      expiresAt,
+      used: false,
+    });
+
+    // Update application status
+    await updateDoc(doc(db, 'volunteer_applications', app.id), { status: 'approved', token });
+
+    // Fire-and-forget invite email
+    fetch('/api/send-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: app.email, fullName: app.fullName, city: app.city, token }),
+    }).catch(() => {});
+
+    setInviteSent(prev => ({ ...prev, [app.id]: true }));
+    setUpdatingId(null);
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/');
+  };
+
+  const addOrg = async () => {
+    const { name, email, phone, city } = orgForm;
+    if (!name || !email || !phone || !city) { setOrgFormError('שם, מייל, טלפון ועיר חובה'); return; }
+    setOrgFormLoading(true);
+    setOrgFormError('');
+    setOrgFormDone('');
+
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const orgId = `org_${Date.now()}`;
+
+    await setDoc(doc(db, 'invites', token), {
+      token, type: 'organization', orgId,
+      name: orgForm.name, email: orgForm.email, phone: orgForm.phone,
+      city: orgForm.city, address: orgForm.address,
+      description: orgForm.description, website: orgForm.website,
+      animalTypes: orgForm.animalTypes, registrationNumber: orgForm.registrationNumber,
+      expiresAt, used: false,
+    });
+
+    await setDoc(doc(db, 'organizations', orgId), {
+      uid: null, name: orgForm.name, email: orgForm.email, phone: orgForm.phone,
+      city: orgForm.city, address: orgForm.address,
+      description: orgForm.description, website: orgForm.website,
+      animalTypes: orgForm.animalTypes, registrationNumber: orgForm.registrationNumber,
+      status: 'approved', verified: true,
+      createdAt: new Date(), addedByAdmin: true, inviteToken: token,
+    });
+
+    fetch('/api/invite-org', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, name: orgForm.name, email: orgForm.email, city: orgForm.city }),
+    }).catch(() => {});
+
+    setOrgFormDone(`✅ הזמנה נשלחה ל-${orgForm.email}`);
+    setOrgForm({ name:'', email:'', phone:'', city:'', address:'', description:'', website:'', animalTypes:[], registrationNumber:'' });
+    setOrgFormLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: 'white' }}>{t('common','loading')}</p>
+      </div>
+    );
+  }
+
+  const pendingOrgs = organizations.filter(o => o.status === 'pending').length;
+  const pendingVols = volunteers.filter(v => v.status === 'pending').length;
+  const pendingApps = applications.filter(a => a.status === 'pending_review').length;
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '16px' }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingTop: '16px' }}>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: '900', color: 'white', margin: 0 }}>{t('admin','title')}</h1>
+            <p style={{ color: '#94A3B8', fontSize: '13px', margin: '4px 0 0' }}>{t('admin','subtitle')}</p>
+          </div>
+          <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.15)', color: '#FCA5A5', border: '1px solid #EF4444', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+            {t('common','logout')}
+          </button>
+        </div>
+
+        {/* Summary stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '24px' }}>
+          {[
+            { label: t('admin','tabOrgs').replace('🏢 ',''), total: organizations.length, pending: pendingOrgs, color: '#EF4444' },
+            { label: t('admin','tabVols').replace('🤝 ',''), total: volunteers.length, pending: pendingVols, color: '#3B82F6' },
+            { label: t('admin','tabReports').replace('📋 ',''), total: reports.length, pending: reports.filter(r => r.status === 'pending').length, color: '#F97316' },
+            { label: t('admin','tabApplications').replace('📩 ',''), total: applications.length, pending: pendingApps, color: '#A855F7' },
+          ].map(s => (
+            <div key={s.label} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${s.color}44`, borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '26px', fontWeight: 'bold', color: s.color }}>{s.total}</div>
+              <div style={{ fontSize: '12px', color: '#94A3B8' }}>{s.label}</div>
+              {s.pending > 0 && (
+                <div style={{ fontSize: '11px', color: '#F59E0B', marginTop: '4px', fontWeight: '600' }}>
+                  {s.pending} {t('admin','pendingApproval')}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          {([['applications', `${t('admin','tabApplications')}${pendingApps ? ` (${pendingApps})` : ''}`],
+             ['organizations', `${t('admin','tabOrgs')}${pendingOrgs ? ` (${pendingOrgs})` : ''}`],
+             ['volunteers', `${t('admin','tabVols')}${pendingVols ? ` (${pendingVols})` : ''}`],
+             ['reports', t('admin','tabReports')],
+             ['add_org', '➕ הוסף עמותה']] as [Tab, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '14px',
+                background: tab === key ? '#EF4444' : 'rgba(255,255,255,0.08)',
+                color: tab === key ? 'white' : '#CBD5E1',
+                transition: 'all 0.2s',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Applications */}
+        {tab === 'applications' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {applications.length === 0 && <EmptyState label={t('admin','noApplications')} />}
+            {applications.map(app => {
+              const isExpanded = expandedApp === app.id;
+              const isPending = app.status === 'pending_review';
+              return (
+                <Card key={app.id}>
+                  {/* Header row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <p style={{ color: 'white', fontWeight: 'bold', margin: 0, fontSize: '15px' }}>{app.fullName}</p>
+                        {isPending && <span style={{ fontSize: '11px', background: 'rgba(168,85,247,0.2)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '10px', padding: '2px 8px', fontWeight: '700' }}>{t('admin','newBadge')}</span>}
+                      </div>
+                      <p style={{ color: '#94A3B8', fontSize: '13px', margin: '0 0 2px' }}>
+                        📍 {app.city} · 📞 {app.phone} · ✉️ {app.email}
+                      </p>
+                      <p style={{ color: '#64748B', fontSize: '12px', margin: 0 }}>
+                        ת.ז. {app.idNumber} · נולד/ה {app.birthYear} · {app.hasCar ? '🚗 יש רכב' : '🚶 אין רכב'}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                      <StatusBadge status={app.status === 'pending_review' ? 'pending' : app.status} />
+                      <button
+                        onClick={() => setExpandedApp(isExpanded ? null : app.id)}
+                        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', color: '#CBD5E1', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                      >
+                        {isExpanded ? t('admin','hideDetails') : t('admin','details')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+                        <InfoBlock title="ניסיון עם בעלי חיים" value={app.experience} />
+                        <InfoBlock title="מוטיבציה" value={app.motivation} />
+                        <InfoBlock title="שעות זמינות" value={app.availableHours} />
+                        <InfoBlock title="בעלי חיים בבית" value={app.hasAnimals || '—'} />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+                        <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '12px' }}>
+                          <p style={{ color: '#60A5FA', fontSize: '12px', fontWeight: '700', margin: '0 0 6px' }}>ממליץ 1</p>
+                          <p style={{ color: 'white', fontSize: '13px', margin: '0 0 2px' }}>{app.ref1Name || '—'}</p>
+                          {app.ref1Phone && <a href={`tel:${app.ref1Phone}`} style={{ color: '#94A3B8', fontSize: '12px' }}>{app.ref1Phone}</a>}
+                        </div>
+                        {app.ref2Name && (
+                          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '12px' }}>
+                            <p style={{ color: '#60A5FA', fontSize: '12px', fontWeight: '700', margin: '0 0 6px' }}>ממליץ 2</p>
+                            <p style={{ color: 'white', fontSize: '13px', margin: '0 0 2px' }}>{app.ref2Name}</p>
+                            {app.ref2Phone && <a href={`tel:${app.ref2Phone}`} style={{ color: '#94A3B8', fontSize: '12px' }}>{app.ref2Phone}</a>}
+                          </div>
+                        )}
+                      </div>
+
+                      {(app.facebook || app.instagram) && (
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                          {app.facebook && <a href={app.facebook.startsWith('http') ? app.facebook : `https://${app.facebook}`} target="_blank" rel="noopener" style={{ color: '#60A5FA', fontSize: '13px' }}>🔵 Facebook</a>}
+                          {app.instagram && <span style={{ color: '#C084FC', fontSize: '13px' }}>📷 {app.instagram}</span>}
+                        </div>
+                      )}
+
+                      <p style={{ color: '#475569', fontSize: '11px', marginBottom: '14px' }}>
+                        נשלח: {app.submittedAt ? new Date(app.submittedAt).toLocaleString('he-IL') : '—'} · כתובת: {app.address}
+                      </p>
+
+                      {(app.status === 'pending_review' || app.status === 'under_review') && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {inviteSent[app.id] ? (
+                            <div style={{ padding: '8px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '8px', color: '#6EE7B7', fontSize: '13px', fontWeight: '600' }}>
+                              {t('admin','inviteSent')}
+                            </div>
+                          ) : (
+                            <ActionButton
+                              label={t('admin','approveInvite')}
+                              color="#10B981"
+                              loading={updatingId === app.id}
+                              onClick={() => approveAndInvite(app)}
+                            />
+                          )}
+                          {app.status === 'pending_review' && (
+                            <ActionButton label={t('admin','underReview')} color="#F59E0B" loading={updatingId === app.id}
+                              onClick={() => update('volunteer_applications', app.id, { status: 'under_review' })} />
+                          )}
+                          <ActionButton label={t('common','reject')} color="#EF4444" loading={updatingId === app.id}
+                            onClick={() => update('volunteer_applications', app.id, { status: 'rejected' })} />
+                        </div>
+                      )}
+                      {app.status === 'approved' && !app.accountCreated && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <span style={{ color: '#6EE7B7', fontSize: '13px' }}>{t('admin','waitingReg')}</span>
+                          <ActionButton label={t('admin','sendAgain')} color="#3B82F6" loading={updatingId === app.id}
+                            onClick={() => approveAndInvite(app)} />
+                        </div>
+                      )}
+                      {app.status === 'approved' && app.accountCreated && (
+                        <span style={{ color: '#6EE7B7', fontSize: '13px' }}>{t('admin','activeAccount')}</span>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Organizations */}
+        {tab === 'organizations' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {organizations.length === 0 && <EmptyState label={t('admin','noOrgs')} />}
+            {organizations.map(org => (
+              <Card key={org.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ color: 'white', fontWeight: 'bold', margin: '0 0 4px' }}>{org.name}</p>
+                    <p style={{ color: '#94A3B8', fontSize: '13px', margin: '0 0 4px' }}>{org.email} | {org.city}</p>
+                    <p style={{ color: '#94A3B8', fontSize: '13px', margin: 0 }}>מ"ר: {org.registrationNumber || '—'}</p>
+                    {org.description && <p style={{ color: '#CBD5E1', fontSize: '13px', marginTop: '6px' }}>{org.description}</p>}
+                    {org.animalTypes?.length > 0 && (
+                      <p style={{ color: '#6EE7B7', fontSize: '12px', marginTop: '4px' }}>{org.animalTypes.join(', ')}</p>
+                    )}
+                  </div>
+                  <StatusBadge status={org.status} />
+                </div>
+                {org.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <ActionButton
+                      label={t('common','approve')}
+                      color="#10B981"
+                      loading={updatingId === org.id}
+                      onClick={() => update('organizations', org.id, { status: 'approved', verified: true })}
+                    />
+                    <ActionButton
+                      label={t('common','reject')}
+                      color="#EF4444"
+                      loading={updatingId === org.id}
+                      onClick={() => update('organizations', org.id, { status: 'rejected' })}
+                    />
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Volunteers */}
+        {tab === 'volunteers' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {volunteers.length === 0 && <EmptyState label={t('admin','noVols')} />}
+            {volunteers.map(vol => (
+              <Card key={vol.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ color: 'white', fontWeight: 'bold', margin: '0 0 4px' }}>{vol.name}</p>
+                    <p style={{ color: '#94A3B8', fontSize: '13px', margin: '0 0 4px' }}>{vol.email} | {vol.city}</p>
+                    <p style={{ color: '#94A3B8', fontSize: '13px', margin: 0 }}>
+                      {vol.hasCar ? '🚗 יש רכב' : '🚶 אין רכב'} | {vol.availableHours}
+                    </p>
+                    {vol.bio && <p style={{ color: '#CBD5E1', fontSize: '13px', marginTop: '6px' }}>{vol.bio}</p>}
+                  </div>
+                  <StatusBadge status={vol.status} />
+                </div>
+                {vol.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <ActionButton
+                      label={t('common','approve')}
+                      color="#10B981"
+                      loading={updatingId === vol.id}
+                      onClick={() => update('volunteers', vol.id, { status: 'approved', verified: true })}
+                    />
+                    <ActionButton
+                      label={t('common','reject')}
+                      color="#EF4444"
+                      loading={updatingId === vol.id}
+                      onClick={() => update('volunteers', vol.id, { status: 'rejected' })}
+                    />
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Reports */}
+        {tab === 'reports' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {reports.length === 0 && <EmptyState label={t('admin','noReports')} />}
+            {reports.map(report => (
+              <Card key={report.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ color: 'white', fontWeight: 'bold', margin: '0 0 4px' }}>{report.animalType}</p>
+                    <p style={{ color: '#94A3B8', fontSize: '13px', margin: '0 0 4px' }}>📍 {report.location}</p>
+                    {report.description && <p style={{ color: '#CBD5E1', fontSize: '13px', margin: 0 }}>{report.description}</p>}
+                    <p style={{ color: '#6EE7B7', fontSize: '12px', marginTop: '4px' }}>
+                      🤝 {report.volunteers?.length || 0} מתנדבים
+                    </p>
+                  </div>
+                  <StatusBadge status={report.status} />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  {['pending', 'in_progress', 'rescued', 'closed'].map(s => (
+                    <button
+                      key={s}
+                      disabled={report.status === s || updatingId === report.id}
+                      onClick={() => update('reports', report.id, { status: s })}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        border: `1px solid ${STATUS_COLORS[s].color}`,
+                        background: report.status === s ? STATUS_COLORS[s].bg : 'transparent',
+                        color: STATUS_COLORS[s].color,
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: report.status === s ? 'default' : 'pointer',
+                        opacity: report.status === s ? 1 : 0.7,
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {STATUS_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Add Organization */}
+        {tab === 'add_org' && (
+          <div style={{ maxWidth: '560px' }}>
+            <h2 style={{ color: 'white', fontSize: '18px', fontWeight: '800', margin: '0 0 20px' }}>➕ הוסף עמותה</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Basic info */}
+              <Card>
+                <p style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '700', margin: '0 0 14px', textTransform: 'uppercase' }}>פרטים בסיסיים</p>
+                <AField label="שם העמותה *" value={orgForm.name} onChange={v => setOrgForm(f => ({...f, name: v}))} placeholder="למשל: אגודת חסד לחיות" />
+                <AField label='דוא"ל *' type="email" value={orgForm.email} onChange={v => setOrgForm(f => ({...f, email: v}))} placeholder="org@example.org" />
+                <AField label="טלפון *" value={orgForm.phone} onChange={v => setOrgForm(f => ({...f, phone: v}))} placeholder="03-1234567" />
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={aLabel}>עיר *</label>
+                  <select value={orgForm.city} onChange={e => setOrgForm(f => ({...f, city: e.target.value}))} style={aInput}>
+                    <option value="" style={{ background: '#1E293B' }}>בחר עיר</option>
+                    {CITIES.map(c => <option key={c} value={c} style={{ background: '#1E293B' }}>{c}</option>)}
+                  </select>
+                </div>
+                <AField label="כתובת מלאה" value={orgForm.address} onChange={v => setOrgForm(f => ({...f, address: v}))} placeholder="רחוב הרצל 1, תל אביב" />
+              </Card>
+
+              {/* Details */}
+              <Card>
+                <p style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '700', margin: '0 0 14px', textTransform: 'uppercase' }}>פרטים נוספים</p>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={aLabel}>תיאור</label>
+                  <textarea value={orgForm.description} onChange={e => setOrgForm(f => ({...f, description: e.target.value}))} placeholder="תיאור קצר על העמותה..." rows={3} style={{ ...aInput, resize: 'vertical' }} />
+                </div>
+                <AField label="אתר" value={orgForm.website} onChange={v => setOrgForm(f => ({...f, website: v}))} placeholder="https://example.org" />
+                <AField label='מספר רישום (אופציונלי)' value={orgForm.registrationNumber} onChange={v => setOrgForm(f => ({...f, registrationNumber: v}))} placeholder="580123456" />
+              </Card>
+
+              {/* Animal types */}
+              <Card>
+                <p style={{ color: '#94A3B8', fontSize: '12px', fontWeight: '700', margin: '0 0 12px', textTransform: 'uppercase' }}>סוגי חיות</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {ANIMAL_TYPES.map(type => {
+                    const checked = orgForm.animalTypes.includes(type);
+                    return (
+                      <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: checked ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${checked ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <input type="checkbox" checked={checked} onChange={e => setOrgForm(f => ({ ...f, animalTypes: e.target.checked ? [...f.animalTypes, type] : f.animalTypes.filter(t => t !== type) }))} style={{ accentColor: '#EF4444', cursor: 'pointer' }} />
+                        <span style={{ color: 'white', fontSize: '13px' }}>{type}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              {/* Error / Success */}
+              {orgFormError && (
+                <div style={{ padding: '12px', background: 'rgba(220,38,38,0.1)', border: '1px solid #DC2626', borderRadius: '10px', color: '#FCA5A5', fontSize: '13px' }}>
+                  ⚠️ {orgFormError}
+                </div>
+              )}
+              {orgFormDone && (
+                <div style={{ padding: '12px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', borderRadius: '10px', color: '#6EE7B7', fontSize: '13px', fontWeight: '600' }}>
+                  {orgFormDone}
+                </div>
+              )}
+
+              <button
+                onClick={addOrg}
+                disabled={orgFormLoading}
+                style={{ padding: '14px', background: orgFormLoading ? '#334155' : 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white', border: 'none', borderRadius: '12px', cursor: orgFormLoading ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '15px', opacity: orgFormLoading ? 0.7 : 1 }}
+              >
+                {orgFormLoading ? '⏳ שולח...' : '🏢 הוסף עמותה ושלח הזמנה'}
+              </button>
+
+              <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '10px', padding: '12px' }}>
+                <p style={{ color: '#93C5FD', fontSize: '13px', margin: 0, lineHeight: '1.6' }}>
+                  📧 העמותה תקבל מייל עם קישור להגדרת סיסמא.<br/>
+                  לאחר הכניסה הם ירואו ישירות את הדשבורד שלהם עם כל הפרטים מלאים.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const aLabel: React.CSSProperties = { display: 'block', color: '#CBD5E1', fontSize: '13px', fontWeight: '600', marginBottom: '6px' };
+const aInput: React.CSSProperties = { width: '100%', padding: '10px 13px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', color: 'white', fontSize: '14px', boxSizing: 'border-box' };
+
+function AField({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <label style={aLabel}>{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={aInput} />
+    </div>
+  );
+}
+
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '16px' }}>
+      {children}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const { t } = useLang();
+  const s = STATUS_COLORS[status] || { color: '#94A3B8', bg: 'rgba(148,163,184,0.15)' };
+  const label = status in ({} as any) ? status :
+    (status === 'pending_review' ? t('status','pending') :
+     t('status', status as any) || status);
+  return (
+    <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', color: s.color, background: s.bg, flexShrink: 0 }}>
+      {label}
+    </span>
+  );
+}
+
+function ActionButton({ label, color, loading, onClick }: { label: string; color: string; loading: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      style={{
+        flex: 1,
+        padding: '8px',
+        borderRadius: '8px',
+        border: `1px solid ${color}`,
+        background: `${color}22`,
+        color,
+        fontWeight: '600',
+        fontSize: '13px',
+        cursor: loading ? 'not-allowed' : 'pointer',
+        opacity: loading ? 0.6 : 1,
+        transition: 'all 0.2s',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function InfoBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '12px' }}>
+      <p style={{ color: '#64748B', fontSize: '11px', fontWeight: '700', margin: '0 0 4px', textTransform: 'uppercase' }}>{title}</p>
+      <p style={{ color: '#CBD5E1', fontSize: '13px', margin: 0, lineHeight: '1.5' }}>{value || '—'}</p>
+    </div>
+  );
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '48px', color: '#94A3B8' }}>
+      <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
+      <p>{label}</p>
+    </div>
+  );
+}

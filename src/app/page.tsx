@@ -1,51 +1,203 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { collection, getCountFromServer, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import BottomNav from '@/components/BottomNav';
+import { useLang } from '@/lib/lang-context';
 
 export default function Home() {
+  const { t } = useLang();
+  const [mounted, setMounted] = useState(false);
+  const [counts, setCounts] = useState({ total: 0, rescued: 0, inProgress: 0, volunteers: 0 });
+
+  useEffect(() => {
+    setMounted(true);
+
+    async function fetchStats() {
+      try {
+        const [total, rescued, inProgress, volunteers] = await Promise.all([
+          getCountFromServer(collection(db, 'reports')),
+          getCountFromServer(query(collection(db, 'reports'), where('status', '==', 'rescued'))),
+          getCountFromServer(query(collection(db, 'reports'), where('status', '==', 'in_progress'))),
+          getCountFromServer(collection(db, 'volunteers')),
+        ]);
+        setCounts({
+          total: total.data().count,
+          rescued: rescued.data().count,
+          inProgress: inProgress.data().count,
+          volunteers: volunteers.data().count,
+        });
+      } catch {}
+    }
+
+    fetchStats();
+  }, []);
+
+  if (!mounted) return null;
+
+  const stats = [
+    { icon: '📸', label: t('home', 'statReports'),  value: counts.total.toString(),     color: '#F97316' },
+    { icon: '✅', label: t('home', 'statRescued'),   value: counts.rescued.toString(),   color: '#10B981' },
+    { icon: '⏳', label: t('home', 'statProgress'),  value: counts.inProgress.toString(),color: '#F59E0B' },
+    { icon: '🤝', label: t('home', 'statVols'),      value: counts.volunteers.toString(),color: '#3B82F6' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-500 to-pink-600 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Animation */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-white opacity-10 rounded-full blur-3xl -top-20 -left-20"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-white opacity-10 rounded-full blur-3xl -bottom-20 -right-20"></div>
-
-      <div className="relative z-10 text-center max-w-md">
-        {/* Logo */}
-        <div className="mb-6 animate-bounce">
-          <span className="text-7xl">🐾</span>
-        </div>
-
-        {/* Title */}
-        <h1 className="text-5xl font-black text-white mb-3 drop-shadow-lg">
-          Pawtrol
-        </h1>
-        
-        {/* Subtitle */}
-        <p className="text-xl text-white mb-4 font-semibold drop-shadow-md">
-          בעל חיים במצוקה?
-        </p>
-
-        <p className="text-lg text-white/90 mb-8 drop-shadow-md leading-relaxed">
-          דווח תוך 10 שניות והעזור להצילו
-        </p>
-
-        {/* CTA Button */}
-        <Link href="/report">
-          <button className="w-full bg-white text-red-600 font-black py-4 px-8 rounded-2xl text-lg shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 mb-6">
-            🚨 דווח עכשיו
+    <div 
+      style={{ 
+        background: `linear-gradient(135deg, #0F172A 0%, #1E293B 100%)`,
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '16px',
+      }}
+    >
+      {/* Top Navigation */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        marginBottom: '32px',
+        paddingTop: '16px',
+      }}>
+        <Link href="/auth/login" style={{ textDecoration: 'none' }}>
+          <button style={{
+            background: 'rgba(239, 68, 68, 0.2)',
+            color: '#FCA5A5',
+            fontWeight: 'bold',
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: '2px solid #EF4444',
+            cursor: 'pointer',
+            fontSize: '14px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239, 68, 68, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239, 68, 68, 0.2)';
+          }}>
+            {t('home', 'loginBtn')}
           </button>
         </Link>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 mt-8">
-          <div className="bg-white/20 backdrop-blur-md rounded-xl p-4 text-white">
-            <p className="text-2xl font-black">0</p>
-            <p className="text-sm">דיווחים</p>
-          </div>
-          <div className="bg-white/20 backdrop-blur-md rounded-xl p-4 text-white">
-            <p className="text-2xl font-black">0</p>
-            <p className="text-sm">חיות הצלו</p>
-          </div>
-        </div>
       </div>
+
+      {/* Header */}
+      <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+        <div style={{ fontSize: '56px', marginBottom: '12px', animation: 'bounce 2s infinite' }}>
+          🐾
+        </div>
+        <h1 style={{ fontSize: '36px', fontWeight: '900', color: '#FFFFFF', marginBottom: '8px' }}>
+          Pawtrol
+        </h1>
+        <p style={{ color: '#CBD5E1', fontSize: '16px', marginBottom: '8px' }}>
+          {t('home', 'tagline')}
+        </p>
+        <p style={{ color: '#94A3B8', fontSize: '14px' }}>
+          {t('home', 'subTagline')}
+        </p>
+      </div>
+
+      {/* Stats Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '12px',
+        marginBottom: '32px',
+        maxWidth: '500px',
+        margin: '0 auto 32px auto',
+        width: '100%',
+      }}>
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            style={{
+              background: `linear-gradient(135deg, ${stat.color}99 0%, ${stat.color} 100%)`,
+              borderRadius: '16px',
+              padding: '16px',
+              textAlign: 'center',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)',
+              transition: 'transform 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ fontSize: '28px', marginBottom: '8px' }}>{stat.icon}</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'white' }}>
+              {stat.value}
+            </div>
+            <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)' }}>
+              {stat.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA Button */}
+      <div style={{ maxWidth: '500px', margin: '0 auto', width: '100%', marginBottom: '24px' }}>
+        <Link href="/report" style={{ textDecoration: 'none' }}>
+          <button
+            style={{
+              width: '100%',
+              background: `linear-gradient(135deg, #EF4444 0%, #DC2626 100%)`,
+              color: 'white',
+              border: 'none',
+              borderRadius: '16px',
+              padding: '16px',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              boxShadow: '0 20px 25px -5px rgba(239, 68, 68, 0.3)',
+              transition: 'all 0.3s',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.02)';
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 25px 30px -5px rgba(239, 68, 68, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 20px 25px -5px rgba(239, 68, 68, 0.3)';
+            }}
+          >
+            {t('home', 'ctaReport')}
+          </button>
+        </Link>
+      </div>
+
+      {/* Secondary CTA */}
+      <div style={{ maxWidth: '500px', margin: '0 auto 0', width: '100%', paddingBottom: '16px' }}>
+        <Link href="/apply" style={{ textDecoration: 'none' }}>
+          <button style={{
+            width: '100%',
+            background: 'rgba(59,130,246,0.1)',
+            color: '#93C5FD',
+            border: '1px solid rgba(59,130,246,0.4)',
+            borderRadius: '14px',
+            padding: '13px',
+            fontSize: '15px',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}>
+            {t('home', 'ctaVolunteer')}
+          </button>
+        </Link>
+      </div>
+
+      <div style={{ height: '90px' }} />
+      <BottomNav />
+
+      <style>{`
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+      `}</style>
     </div>
   );
 }
