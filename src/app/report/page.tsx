@@ -127,7 +127,7 @@ export default function ReportPage() {
         extraUrls.push(await getDownloadURL(eRef));
       }
 
-      await addDoc(collection(db, 'reports'), {
+      const reportRef = await addDoc(collection(db, 'reports'), {
         animalType,
         location,
         description,
@@ -138,6 +138,13 @@ export default function ReportPage() {
         status: 'pending',
         reportedBy: auth.currentUser?.uid || null,
       });
+
+      // Notify orgs + volunteers in background (don't block success)
+      fetch('/api/notify-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ animalType, location, reportId: reportRef.id, imageUrl, stillThere, description }),
+      }).catch(() => {});
 
       setSuccess(true);
       setTimeout(() => {
