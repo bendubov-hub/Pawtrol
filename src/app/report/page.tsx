@@ -56,7 +56,9 @@ export default function ReportPage() {
   // Step 3
   const [stillThere, setStillThere] = useState<boolean | null>(null);
   const [description, setDescription] = useState('');
+  const [reporterEmail, setReporterEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const filtered = ANIMALS.filter(a =>
@@ -115,6 +117,13 @@ export default function ReportPage() {
     if (!image || !location || !animalType) return;
     setLoading(true);
     try {
+      // Get reporter's FCM token for push notifications (works even anonymous)
+      let reporterFcmToken: string | null = null;
+      try {
+        const { registerFcmToken } = await import('@/lib/fcm');
+        reporterFcmToken = await registerFcmToken(auth.currentUser?.uid);
+      } catch { /* notifications not granted */ }
+
       const ts = Date.now();
       const mainRef = ref(storage, `reports/${ts}_${image.name}`);
       await uploadBytes(mainRef, image);
@@ -137,6 +146,9 @@ export default function ReportPage() {
         extraMedia: extraUrls,
         status: 'pending',
         reportedBy: auth.currentUser?.uid || null,
+        reporterFcmToken: reporterFcmToken || null,
+        reporterEmail: auth.currentUser?.email || reporterEmail || null,
+        reporterEmail: auth.currentUser?.email || reporterEmail || null,
       });
 
       // Notify orgs + volunteers in background (don't block success)
@@ -337,6 +349,35 @@ export default function ReportPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Reporter email — only if not logged in */}
+              {!auth.currentUser && (
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ color: '#94A3B8', fontSize: '12px', marginBottom: '6px', fontWeight: '600' }}>
+                    🔔 {t('report', 'notifyMeHint')}
+                  </p>
+                  {emailSaved ? (
+                    <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', borderRadius: '10px', color: '#6EE7B7', fontSize: '13px', fontWeight: '600' }}>
+                      ✅ {t('report', 'notifyMeSaved')}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="email"
+                        value={reporterEmail}
+                        onChange={e => setReporterEmail(e.target.value)}
+                        placeholder={t('report', 'notifyMePlaceholder')}
+                        style={{ flex: 1, padding: '10px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'white', fontSize: '13px', boxSizing: 'border-box' as const }}
+                      />
+                      {reporterEmail && (
+                        <button type="button" onClick={() => setEmailSaved(true)} style={{ padding: '10px 14px', background: '#10B981', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}>
+                          ✓
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Description */}
               <p style={{ color: '#94A3B8', fontSize: '12px', marginBottom: '6px', fontWeight: '600' }}>

@@ -145,6 +145,15 @@ export default function VolunteerDashboard() {
     setActionLoading('rescued');
     await updateDoc(doc(db, 'reports', reportId), { status: 'rescued', rescuedAt: new Date() });
     setSelectedReport(prev => prev ? { ...prev, status: 'rescued' } : null);
+
+    // Notify reporter
+    if (selectedReport) {
+      fetch('/api/notify-rescued', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId, animalType: selectedReport.animalType, location: selectedReport.location }),
+      }).catch(() => {});
+    }
     setActionLoading(null);
   };
 
