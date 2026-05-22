@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, arrayUnion, getDoc, getDocs } from 'firebase/firestore';
 import { useLang } from '@/lib/lang-context';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '@/lib/firebase';
@@ -16,15 +16,27 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   closed:      { label: 'נסגר', color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
 };
 
+interface Org {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+  animalTypes?: string[];
+}
+
 interface Report {
   id: string;
   animalType: string;
   location: string;
   description: string;
+  stillThere?: boolean | null;
   status: string;
   imageUrl: string;
   timestamp: any;
   volunteers?: string[];
+  handledBy?: string;
+  pickedUp?: boolean;
   imageDownloadUrl?: string;
 }
 
@@ -39,6 +51,8 @@ export default function VolunteerDashboard() {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [available, setAvailable] = useState(false);
   const [togglingAvail, setTogglingAvail] = useState(false);
+  const [relevantOrgs, setRelevantOrgs] = useState<Org[]>([]);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/auth/login');
@@ -96,11 +110,40 @@ export default function VolunteerDashboard() {
     await updateDoc(doc(db, 'reports', reportId), {
       volunteers: arrayUnion(user.uid),
       status: 'in_progress',
+      handledBy: user.uid,
     });
     setJoiningId(null);
     if (selectedReport?.id === reportId) {
-      setSelectedReport(prev => prev ? { ...prev, status: 'in_progress', volunteers: [...(prev.volunteers || []), user.uid] } : null);
+      setSelectedReport(prev => prev ? { ...prev, status: 'in_progress', handledBy: user.uid, volunteers: [...(prev.volunteers || []), user.uid] } : null);
     }
+  };
+
+  const confirmPickup = async (reportId: string) => {
+    setActionLoading('pickup');
+    await updateDoc(doc(db, 'reports', reportId), { pickedUp: true, pickedUpAt: new Date() });
+    setSelectedReport(prev => prev ? { ...prev, pickedUp: true } : null);
+    setActionLoading(null);
+  };
+
+  const confirmRescued = async (reportId: string) => {
+    setActionLoading('rescued');
+    await updateDoc(doc(db, 'reports', reportId), { status: 'rescued', rescuedAt: new Date() });
+    setSelectedReport(prev => prev ? { ...prev, status: 'rescued' } : null);
+    setActionLoading(null);
+  };
+
+  // Load relevant orgs when opening a report
+  const openReport = async (report: Report) => {
+    setSelectedReport(report);
+    const snap = await getDocs(collection(db, 'organizations'));
+    const orgs = snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Org))
+      .filter(o => {
+        if (!o.animalTypes?.length) return true;
+        const base = report.animalType.replace(/\p{Emoji}/gu, '').trim().toLowerCase();
+        return o.animalTypes.some(t => t.replace(/\p{Emoji}/gu, '').trim().toLowerCase().includes(base) || base.includes(t.replace(/\p{Emoji}/gu, '').trim().toLowerCase()));
+      });
+    setRelevantOrgs(orgs);
   };
 
   const handleLogout = async () => {
@@ -233,7 +276,7 @@ export default function VolunteerDashboard() {
               return (
                 <div
                   key={report.id}
-                  onClick={() => setSelectedReport(report)}
+                  onClick={() => openReport(report)}
                   style={{
                     background: 'rgba(255,255,255,0.05)',
                     border: `1px solid ${isJoined ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.1)'}`,
@@ -311,37 +354,81 @@ export default function VolunteerDashboard() {
               <img src={selectedReport.imageDownloadUrl} alt="report" style={{ width: '100%', borderRadius: '12px', marginBottom: '16px', maxHeight: '260px', objectFit: 'cover' }} />
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+            {/* Details */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '16px' }}>
+              <p style={{ color: '#CBD5E1', fontSize: '14px', margin: 0 }}>🐾 {selectedReport.animalType}</p>
               <p style={{ color: '#CBD5E1', fontSize: '14px', margin: 0 }}>📍 {selectedReport.location}</p>
-              {selectedReport.description && <p style={{ color: '#CBD5E1', fontSize: '14px', margin: 0 }}>{selectedReport.description}</p>}
-              <p style={{ color: '#94A3B8', fontSize: '13px', margin: 0 }}>
-                🤝 {selectedReport.volunteers?.length || 0} {t('volunteerDash','volunteers')}
-              </p>
+              {selectedReport.stillThere !== undefined && (
+                <p style={{ color: selectedReport.stillThere ? '#6EE7B7' : '#FCA5A5', fontSize: '13px', margin: 0 }}>
+                  {selectedReport.stillThere === true ? '✅ המדווח עדיין במקום' : selectedReport.stillThere === false ? '❌ המדווח עזב' : ''}
+                </p>
+              )}
+              {selectedReport.description && <p style={{ color: '#94A3B8', fontSize: '13px', margin: 0 }}>📝 {selectedReport.description}</p>}
             </div>
 
-            {selectedReport.volunteers?.includes(user?.uid || '') ? (
-              <div style={{ padding: '12px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', borderRadius: '8px', textAlign: 'center', color: '#6EE7B7', fontWeight: '600' }}>
-                {t('volunteerDash','alreadyJoined')}
+            {/* Navigation */}
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedReport.location)}`}
+              target="_blank" rel="noreferrer"
+              style={{ display: 'block', padding: '12px', background: '#1E40AF', color: 'white', borderRadius: '10px', textDecoration: 'none', fontWeight: '700', fontSize: '14px', textAlign: 'center', marginBottom: '12px' }}
+            >
+              🗺️ נווט למיקום
+            </a>
+
+            {/* Action buttons */}
+            {selectedReport.status === 'rescued' ? (
+              <div style={{ padding: '12px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', borderRadius: '10px', textAlign: 'center', color: '#6EE7B7', fontWeight: '700' }}>
+                🎉 הוצל בהצלחה!
               </div>
-            ) : (
-              <button
-                onClick={() => joinReport(selectedReport.id)}
-                disabled={joiningId === selectedReport.id}
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)',
-                  color: 'white',
-                  fontWeight: 'bold',
-                  padding: '12px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  cursor: joiningId === selectedReport.id ? 'not-allowed' : 'pointer',
-                  fontSize: '15px',
-                  opacity: joiningId === selectedReport.id ? 0.7 : 1,
-                }}
-              >
-                {joiningId === selectedReport.id ? t('volunteerDash','joining') : t('volunteerDash','joinBtn')}
+            ) : selectedReport.handledBy === user?.uid ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ padding: '10px', background: 'rgba(59,130,246,0.1)', border: '1px solid #3B82F6', borderRadius: '10px', color: '#93C5FD', fontWeight: '600', fontSize: '13px', textAlign: 'center' }}>
+                  ✅ אתה מטפל בדיווח זה
+                </div>
+                {!selectedReport.pickedUp ? (
+                  <button onClick={() => confirmPickup(selectedReport.id)} disabled={actionLoading === 'pickup'} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg,#F59E0B,#D97706)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}>
+                    {actionLoading === 'pickup' ? '⏳...' : '🐾 אספתי את החיה'}
+                  </button>
+                ) : (
+                  <button onClick={() => confirmRescued(selectedReport.id)} disabled={actionLoading === 'rescued'} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg,#10B981,#059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}>
+                    {actionLoading === 'rescued' ? '⏳...' : '🏠 הורדתי בעמותה — הוצל!'}
+                  </button>
+                )}
+              </div>
+            ) : !selectedReport.handledBy ? (
+              <button onClick={() => joinReport(selectedReport.id)} disabled={joiningId === selectedReport.id} style={{ width: '100%', background: 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white', fontWeight: '700', padding: '13px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '15px' }}>
+                {joiningId === selectedReport.id ? '⏳...' : '🙋 אני מטפל בזה'}
               </button>
+            ) : (
+              <div style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', color: '#64748B', fontSize: '13px', textAlign: 'center' }}>
+                מתנדב אחר כבר טיפל בדיווח זה
+              </div>
+            )}
+
+            {/* Relevant orgs */}
+            {relevantOrgs.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <p style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '700', margin: '0 0 10px' }}>
+                  🏢 עמותות רלוונטיות לאיסוף:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {relevantOrgs.map(org => (
+                    <div key={org.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px' }}>
+                      <p style={{ color: 'white', fontWeight: '700', fontSize: '14px', margin: '0 0 3px' }}>{org.name}</p>
+                      {(org.address || org.city) && (
+                        <p style={{ color: '#94A3B8', fontSize: '12px', margin: '0 0 6px' }}>📍 {[org.address, org.city].filter(Boolean).join(', ')}</p>
+                      )}
+                      {org.phone && <p style={{ color: '#94A3B8', fontSize: '12px', margin: '0 0 6px' }}>📞 {org.phone}</p>}
+                      {(org.address || org.city) && (
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([org.address, org.city].filter(Boolean).join(' '))}`} target="_blank" rel="noreferrer"
+                          style={{ display: 'inline-block', padding: '6px 12px', background: '#1E3A5F', color: '#93C5FD', borderRadius: '8px', textDecoration: 'none', fontSize: '12px', fontWeight: '600' }}>
+                          🗺️ נווט לעמותה
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>
