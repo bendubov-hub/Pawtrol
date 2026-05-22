@@ -232,12 +232,20 @@ export default function ReportPage() {
                 </>
               ) : (
                 <>
-                  <label style={{ display: 'block', background: 'linear-gradient(135deg,#EF4444,#F97316)', color: 'white', padding: '48px 16px', borderRadius: '16px', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>📸</div>
-                    <div>{t('report', 'choosePhoto')}</div>
+                  {/* Camera button */}
+                  <label style={{ display: 'block', background: 'linear-gradient(135deg,#EF4444,#F97316)', color: 'white', padding: '40px 16px', borderRadius: '16px', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '52px', marginBottom: '10px' }}>📸</div>
+                    <div>{t('report', 'openCamera')}</div>
+                    <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} style={{ display: 'none' }} />
+                  </label>
+
+                  {/* Gallery button */}
+                  <label style={{ display: 'block', background: 'rgba(255,255,255,0.08)', color: 'white', padding: '16px', borderRadius: '14px', textAlign: 'center', cursor: 'pointer', fontWeight: '700', fontSize: '15px', border: '2px solid rgba(255,255,255,0.15)', marginBottom: '10px' }}>
+                    <span style={{ marginLeft: '8px' }}>🖼️</span> {t('report', 'chooseFromGallery')}
                     <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
                   </label>
-                  <p style={{ color: '#475569', fontSize: '12px', textAlign: 'center', marginTop: '10px', lineHeight: '1.6' }}>
+
+                  <p style={{ color: '#475569', fontSize: '12px', textAlign: 'center', marginTop: '6px', lineHeight: '1.6' }}>
                     📍 {t('report', 'locationConsent')}
                   </p>
                 </>
