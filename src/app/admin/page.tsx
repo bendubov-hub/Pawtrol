@@ -426,44 +426,75 @@ export default function AdminPage() {
         {tab === 'reports' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {reports.length === 0 && <EmptyState label={t('admin','noReports')} />}
-            {reports.map(report => (
-              <Card key={report.id}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ color: 'white', fontWeight: 'bold', margin: '0 0 4px' }}>{report.animalType}</p>
-                    <p style={{ color: '#94A3B8', fontSize: '13px', margin: '0 0 4px' }}>📍 {report.location}</p>
-                    {report.description && <p style={{ color: '#CBD5E1', fontSize: '13px', margin: 0 }}>{report.description}</p>}
-                    <p style={{ color: '#6EE7B7', fontSize: '12px', marginTop: '4px' }}>
-                      🤝 {report.volunteers?.length || 0} מתנדבים
-                    </p>
+
+            {/* Summary stats */}
+            {reports.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px', marginBottom: '8px' }}>
+                {[
+                  { label: 'ממתינים', count: reports.filter(r => r.status === 'pending').length, color: '#F59E0B' },
+                  { label: 'בטיפול', count: reports.filter(r => r.status === 'in_progress').length, color: '#3B82F6' },
+                  { label: 'הוצלו', count: reports.filter(r => r.status === 'rescued').length, color: '#10B981' },
+                  { label: 'סה״כ', count: reports.length, color: '#94A3B8' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                    <p style={{ color: s.color, fontWeight: '800', fontSize: '22px', margin: '0 0 2px' }}>{s.count}</p>
+                    <p style={{ color: '#64748B', fontSize: '11px', margin: 0 }}>{s.label}</p>
                   </div>
-                  <StatusBadge status={report.status} />
-                </div>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-                  {['pending', 'in_progress', 'rescued', 'closed'].map(s => (
-                    <button
-                      key={s}
-                      disabled={report.status === s || updatingId === report.id}
-                      onClick={() => update('reports', report.id, { status: s })}
-                      style={{
-                        padding: '5px 12px',
-                        borderRadius: '6px',
-                        border: `1px solid ${STATUS_COLORS[s].color}`,
-                        background: report.status === s ? STATUS_COLORS[s].bg : 'transparent',
-                        color: STATUS_COLORS[s].color,
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: report.status === s ? 'default' : 'pointer',
-                        opacity: report.status === s ? 1 : 0.7,
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      {STATUS_LABELS[s]}
-                    </button>
-                  ))}
-                </div>
-              </Card>
-            ))}
+                ))}
+              </div>
+            )}
+
+            {reports.map(report => {
+              const handler = report.handledBy ? volunteers.find(v => v.id === report.handledBy || v.uid === report.handledBy) : null;
+              const readyOrgs = (report.readyToReceive || []).map((uid: string) => organizations.find(o => o.id === uid || o.uid === uid)?.name).filter(Boolean);
+
+              return (
+                <Card key={report.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: 'white', fontWeight: 'bold', margin: '0 0 4px', fontSize: '15px' }}>{report.animalType}</p>
+                      <p style={{ color: '#94A3B8', fontSize: '13px', margin: '0 0 6px' }}>📍 {report.location}</p>
+
+                      {/* Pipeline steps */}
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                        {handler ? (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(59,130,246,0.15)', color: '#93C5FD', fontWeight: '600' }}>
+                            🙋 {handler.name || 'מתנדב'}
+                          </span>
+                        ) : report.status !== 'pending' ? null : (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(245,158,11,0.15)', color: '#FCD34D', fontWeight: '600' }}>
+                            ⏳ ממתין למתנדב
+                          </span>
+                        )}
+                        {report.pickedUp && (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(16,185,129,0.15)', color: '#6EE7B7', fontWeight: '600' }}>
+                            🐾 נאסף
+                          </span>
+                        )}
+                        {readyOrgs.length > 0 && (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(139,92,246,0.15)', color: '#C4B5FD', fontWeight: '600' }}>
+                            🏠 {readyOrgs[0]} מוכנה
+                          </span>
+                        )}
+                      </div>
+
+                      {report.description && <p style={{ color: '#64748B', fontSize: '12px', margin: 0 }}>{report.description}</p>}
+                    </div>
+                    <StatusBadge status={report.status} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                    {['pending', 'in_progress', 'rescued', 'closed'].map(s => (
+                      <button key={s} disabled={report.status === s || updatingId === report.id}
+                        onClick={() => update('reports', report.id, { status: s })}
+                        style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${STATUS_COLORS[s].color}`, background: report.status === s ? STATUS_COLORS[s].bg : 'transparent', color: STATUS_COLORS[s].color, fontSize: '12px', fontWeight: '600', cursor: report.status === s ? 'default' : 'pointer', opacity: report.status === s ? 1 : 0.7 }}>
+                        {STATUS_LABELS[s]}
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
 
