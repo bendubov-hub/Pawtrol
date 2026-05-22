@@ -48,7 +48,7 @@ export default function VolunteerDashboard() {
   const [reportsLoading, setReportsLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [joiningId, setJoiningId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'mine'>('all');
+  const [filter, setFilter] = useState<'all' | 'mine' | 'history'>('all');
   const [available, setAvailable] = useState(false);
   const [togglingAvail, setTogglingAvail] = useState(false);
   const [relevantOrgs, setRelevantOrgs] = useState<Org[]>([]);
@@ -191,9 +191,10 @@ export default function VolunteerDashboard() {
     );
   }
 
+  const myRescued = reports.filter(r => r.status === 'rescued' && r.handledBy === user?.uid);
   const filteredReports = filter === 'mine'
-    ? reports.filter(r => r.volunteers?.includes(user?.uid || ''))
-    : reports;
+    ? reports.filter(r => r.volunteers?.includes(user?.uid || '') && r.status !== 'rescued')
+    : reports.filter(r => r.status !== 'rescued');
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '16px' }}>
@@ -272,7 +273,11 @@ export default function VolunteerDashboard() {
 
         {/* Filter tabs */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-          {[{ key: 'all', label: `📋 ${t('volunteerDash','allReports')}` }, { key: 'mine', label: `🙋 ${t('volunteerDash','myReports')}` }].map(tab => (
+          {[
+            { key: 'all', label: `📋 ${t('volunteerDash','allReports')}` },
+            { key: 'mine', label: `🙋 ${t('volunteerDash','myReports')}` },
+            { key: 'history', label: `🏆 הצלתי (${myRescued.length})` },
+          ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setFilter(tab.key as any)}
@@ -293,8 +298,49 @@ export default function VolunteerDashboard() {
           ))}
         </div>
 
-        {/* Reports */}
-        {reportsLoading ? (
+        {/* History tab */}
+        {filter === 'history' && (
+          <div>
+            {/* Personal stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '20px' }}>
+              {[
+                { icon: '🎉', value: myRescued.length, label: 'חיות הוצלו' },
+                { icon: '🙋', value: reports.filter(r => r.volunteers?.includes(user?.uid || '')).length, label: 'דיווחים שניהלתי' },
+                { icon: '⚡', value: reports.filter(r => r.handledBy === user?.uid && r.status === 'in_progress').length, label: 'בטיפול עכשיו' },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '22px', marginBottom: '4px' }}>{s.icon}</div>
+                  <div style={{ color: 'white', fontWeight: '800', fontSize: '22px' }}>{s.value}</div>
+                  <div style={{ color: '#64748B', fontSize: '11px' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {myRescued.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px', color: '#94A3B8' }}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🌱</div>
+                <p>עדיין לא הצלת חיות — בוא נתחיל!</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {myRescued.map(report => (
+                  <div key={report.id} style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '12px', padding: '14px', display: 'flex', gap: '14px', alignItems: 'center' }}>
+                    {report.imageDownloadUrl && (
+                      <img src={report.imageDownloadUrl} alt="" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: 'white', fontWeight: '700', margin: '0 0 3px' }}>{report.animalType}</p>
+                      <p style={{ color: '#94A3B8', fontSize: '12px', margin: 0 }}>📍 {report.location}</p>
+                    </div>
+                    <span style={{ fontSize: '20px' }}>🎉</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {filter !== 'history' && (reportsLoading ? (
           <p style={{ color: '#94A3B8', textAlign: 'center', padding: '40px' }}>{t('common','loading')}</p>
         ) : filteredReports.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#94A3B8' }}>
@@ -364,7 +410,7 @@ export default function VolunteerDashboard() {
               );
             })}
           </div>
-        )}
+        ))}
       </div>
 
       {/* Report Modal */}

@@ -8,7 +8,7 @@ import { useLang } from '@/lib/lang-context';
 import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 
-type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org';
+type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats';
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   pending:     { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
@@ -214,7 +214,8 @@ export default function AdminPage() {
              ['organizations', `${t('admin','tabOrgs')}${pendingOrgs ? ` (${pendingOrgs})` : ''}`],
              ['volunteers', `${t('admin','tabVols')}${pendingVols ? ` (${pendingVols})` : ''}`],
              ['reports', t('admin','tabReports')],
-             ['add_org', '➕ הוסף עמותה']] as [Tab, string][]).map(([key, label]) => (
+             ['add_org', '➕ הוסף עמותה'],
+             ['stats', '📊 סטטיסטיקות']] as [Tab, string][]).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -576,6 +577,108 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Stats */}
+        {tab === 'stats' && (() => {
+          const totalReports   = reports.length;
+          const rescued        = reports.filter(r => r.status === 'rescued').length;
+          const inProgress     = reports.filter(r => r.status === 'in_progress').length;
+          const pending        = reports.filter(r => r.status === 'pending').length;
+          const activeVols     = volunteers.filter(v => v.available).length;
+          const approvedOrgs   = organizations.filter(o => o.status === 'approved').length;
+          const rescueRate     = totalReports ? Math.round((rescued / totalReports) * 100) : 0;
+
+          // Top animal types
+          const animalCount: Record<string, number> = {};
+          reports.forEach(r => {
+            const key = r.animalType || 'אחר';
+            animalCount[key] = (animalCount[key] || 0) + 1;
+          });
+          const topAnimals = Object.entries(animalCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+          // Last 7 days
+          const now = Date.now();
+          const day = 86400000;
+          const last7 = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(now - (6 - i) * day);
+            const label = `${d.getDate()}/${d.getMonth() + 1}`;
+            const count = reports.filter(r => {
+              const ts = r.timestamp?.toDate?.()?.getTime?.() || 0;
+              return ts >= now - (6 - i) * day && ts < now - (5 - i) * day;
+            }).length;
+            return { label, count };
+          });
+          const maxDay = Math.max(...last7.map(d => d.count), 1);
+
+          const StatBox = ({ icon, value, label, color }: { icon: string; value: string | number; label: string; color: string }) => (
+            <div style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${color}33`, borderRadius: '14px', padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '28px', marginBottom: '6px' }}>{icon}</div>
+              <div style={{ color, fontWeight: '900', fontSize: '32px', marginBottom: '4px' }}>{value}</div>
+              <div style={{ color: '#64748B', fontSize: '13px' }}>{label}</div>
+            </div>
+          );
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+              {/* Main stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '12px' }}>
+                <StatBox icon="📋" value={totalReports} label="סה״כ דיווחים" color="#94A3B8" />
+                <StatBox icon="🎉" value={rescued} label="חיות שהוצלו" color="#10B981" />
+                <StatBox icon="⚡" value={inProgress} label="בטיפול כעת" color="#3B82F6" />
+                <StatBox icon="🏆" value={`${rescueRate}%`} label="אחוז הצלה" color="#F59E0B" />
+              </div>
+
+              {/* People stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+                  <div style={{ color: '#6EE7B7', fontWeight: '800', fontSize: '24px' }}>{activeVols}</div>
+                  <div style={{ color: '#64748B', fontSize: '12px' }}>מתנדבים זמינים</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+                  <div style={{ color: '#C4B5FD', fontWeight: '800', fontSize: '24px' }}>{volunteers.length}</div>
+                  <div style={{ color: '#64748B', fontSize: '12px' }}>סה״כ מתנדבים</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+                  <div style={{ color: '#FCA5A5', fontWeight: '800', fontSize: '24px' }}>{approvedOrgs}</div>
+                  <div style={{ color: '#64748B', fontSize: '12px' }}>עמותות פעילות</div>
+                </div>
+              </div>
+
+              {/* Last 7 days chart */}
+              <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '14px', padding: '20px' }}>
+                <p style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '700', margin: '0 0 16px' }}>📈 דיווחים — 7 הימים האחרונים</p>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '80px' }}>
+                  {last7.map(d => (
+                    <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ width: '100%', background: '#EF4444', borderRadius: '4px 4px 0 0', height: `${(d.count / maxDay) * 64}px`, minHeight: d.count ? '6px' : '0', transition: 'height 0.3s' }} />
+                      <span style={{ color: '#475569', fontSize: '10px' }}>{d.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top animals */}
+              {topAnimals.length > 0 && (
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '14px', padding: '20px' }}>
+                  <p style={{ color: '#94A3B8', fontSize: '13px', fontWeight: '700', margin: '0 0 14px' }}>🐾 חיות מדווחות בשכיחות גבוהה</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {topAnimals.map(([animal, count]) => (
+                      <div key={animal} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ color: 'white', fontSize: '14px', width: '120px', flexShrink: 0 }}>{animal}</span>
+                        <div style={{ flex: 1, background: 'rgba(255,255,255,0.08)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+                          <div style={{ width: `${(count / topAnimals[0][1]) * 100}%`, height: '100%', background: 'linear-gradient(90deg,#EF4444,#F97316)', borderRadius: '4px' }} />
+                        </div>
+                        <span style={{ color: '#94A3B8', fontSize: '13px', width: '24px', textAlign: 'left' }}>{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
       </div>
     </div>
   );
