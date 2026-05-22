@@ -25,6 +25,9 @@ interface Report {
   imageUrl: string;
   timestamp: any;
   imageDownloadUrl?: string;
+  readyToReceive?: string[]; // org uids that confirmed ready
+  handledBy?: string;
+  pickedUp?: boolean;
 }
 
 interface VolunteerMatch {
@@ -160,6 +163,19 @@ export default function OrganizationsDashboard() {
     if (selectedReport?.id === reportId) {
       setSelectedReport(prev => prev ? { ...prev, status } : null);
     }
+  };
+
+  const confirmReadyToReceive = async (reportId: string) => {
+    if (!user) return;
+    setUpdatingId(reportId);
+    await updateDoc(doc(db, 'reports', reportId), {
+      readyToReceive: arrayUnion(user.uid),
+    });
+    setSelectedReport(prev => prev ? {
+      ...prev,
+      readyToReceive: [...(prev.readyToReceive || []), user.uid],
+    } : null);
+    setUpdatingId(null);
   };
 
   const handleLogout = async () => {
@@ -411,6 +427,30 @@ export default function OrganizationsDashboard() {
                 <p style={{ color: '#CBD5E1', fontSize: '14px', margin: 0 }}>{selectedReport.description}</p>
               )}
             </div>
+
+            {/* Ready to receive button */}
+            {selectedReport.status !== 'rescued' && (
+              <div style={{ marginBottom: '16px' }}>
+                {selectedReport.readyToReceive?.includes(user?.uid || '') ? (
+                  <div style={{ padding: '12px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', borderRadius: '10px', color: '#6EE7B7', fontWeight: '700', textAlign: 'center', fontSize: '14px' }}>
+                    ✅ סימנת שאתם מוכנים לקבל את החיה
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => confirmReadyToReceive(selectedReport.id)}
+                    disabled={updatingId === selectedReport.id}
+                    style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg,#10B981,#059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '15px', cursor: 'pointer' }}
+                  >
+                    🏠 אנחנו מוכנים לקבל את החיה
+                  </button>
+                )}
+                {(selectedReport.readyToReceive?.length || 0) > 0 && (
+                  <p style={{ color: '#6EE7B7', fontSize: '12px', textAlign: 'center', margin: '6px 0 0' }}>
+                    {selectedReport.readyToReceive!.length} עמותות מוכנות לקבל
+                  </p>
+                )}
+              </div>
+            )}
 
             <div style={{ marginBottom: '20px' }}>
               <p style={{ color: '#94A3B8', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>{t('orgDash','updateStatus')}</p>

@@ -70,7 +70,23 @@ export default function VolunteerDashboard() {
     if (!user) return;
     setTogglingAvail(true);
     const next = !available;
-    await updateDoc(doc(db, 'volunteers', user.uid), { available: next });
+    const update: any = { available: next };
+
+    // Save current location when going available so proximity routing works
+    if (next && navigator.geolocation) {
+      await new Promise<void>(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => {
+            update.lat = coords.latitude;
+            update.lng = coords.longitude;
+            resolve();
+          },
+          () => resolve()
+        );
+      });
+    }
+
+    await updateDoc(doc(db, 'volunteers', user.uid), update);
     setAvailable(next);
     setTogglingAvail(false);
   };
@@ -136,12 +152,19 @@ export default function VolunteerDashboard() {
   const openReport = async (report: Report) => {
     setSelectedReport(report);
     const snap = await getDocs(collection(db, 'organizations'));
+    const readyUids: string[] = (report as any).readyToReceive || [];
     const orgs = snap.docs
       .map(d => ({ id: d.id, ...d.data() } as Org))
       .filter(o => {
         if (!o.animalTypes?.length) return true;
         const base = report.animalType.replace(/\p{Emoji}/gu, '').trim().toLowerCase();
         return o.animalTypes.some(t => t.replace(/\p{Emoji}/gu, '').trim().toLowerCase().includes(base) || base.includes(t.replace(/\p{Emoji}/gu, '').trim().toLowerCase()));
+      })
+      // Sort: ready-to-receive orgs first
+      .sort((a, b) => {
+        const aReady = readyUids.includes(a.id) ? -1 : 1;
+        const bReady = readyUids.includes(b.id) ? -1 : 1;
+        return aReady - bReady;
       });
     setRelevantOrgs(orgs);
   };
@@ -412,21 +435,27 @@ export default function VolunteerDashboard() {
                   🏢 עמותות רלוונטיות לאיסוף:
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {relevantOrgs.map(org => (
-                    <div key={org.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px' }}>
-                      <p style={{ color: 'white', fontWeight: '700', fontSize: '14px', margin: '0 0 3px' }}>{org.name}</p>
-                      {(org.address || org.city) && (
-                        <p style={{ color: '#94A3B8', fontSize: '12px', margin: '0 0 6px' }}>📍 {[org.address, org.city].filter(Boolean).join(', ')}</p>
-                      )}
-                      {org.phone && <p style={{ color: '#94A3B8', fontSize: '12px', margin: '0 0 6px' }}>📞 {org.phone}</p>}
-                      {(org.address || org.city) && (
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([org.address, org.city].filter(Boolean).join(' '))}`} target="_blank" rel="noreferrer"
-                          style={{ display: 'inline-block', padding: '6px 12px', background: '#1E3A5F', color: '#93C5FD', borderRadius: '8px', textDecoration: 'none', fontSize: '12px', fontWeight: '600' }}>
-                          🗺️ נווט לעמותה
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                  {relevantOrgs.map(org => {
+                    const isReady = ((selectedReport as any)?.readyToReceive || []).includes(org.id);
+                    return (
+                      <div key={org.id} style={{ background: isReady ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${isReady ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '10px', padding: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <p style={{ color: 'white', fontWeight: '700', fontSize: '14px', margin: 0 }}>{org.name}</p>
+                          {isReady && <span style={{ fontSize: '11px', background: 'rgba(16,185,129,0.2)', color: '#6EE7B7', padding: '2px 8px', borderRadius: '10px', fontWeight: '700' }}>✅ מוכנה לקבל</span>}
+                        </div>
+                        {(org.address || org.city) && (
+                          <p style={{ color: '#94A3B8', fontSize: '12px', margin: '0 0 6px' }}>📍 {[org.address, org.city].filter(Boolean).join(', ')}</p>
+                        )}
+                        {org.phone && <p style={{ color: '#94A3B8', fontSize: '12px', margin: '0 0 6px' }}>📞 {org.phone}</p>}
+                        {(org.address || org.city) && (
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([org.address, org.city].filter(Boolean).join(' '))}`} target="_blank" rel="noreferrer"
+                            style={{ display: 'inline-block', padding: '6px 12px', background: isReady ? '#065F46' : '#1E3A5F', color: isReady ? '#6EE7B7' : '#93C5FD', borderRadius: '8px', textDecoration: 'none', fontSize: '12px', fontWeight: '600' }}>
+                            🗺️ נווט לעמותה
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
