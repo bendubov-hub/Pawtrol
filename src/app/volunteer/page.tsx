@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, arrayUnion, getDoc, getDocs } from 'firebase/firestore';
 import { useLang } from '@/lib/lang-context';
+import { getRank } from '@/lib/ranks';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -299,8 +300,32 @@ export default function VolunteerDashboard() {
         </div>
 
         {/* History tab */}
-        {filter === 'history' && (
+        {filter === 'history' && (() => {
+          const rank = getRank(myRescued.length);
+          return (
           <div>
+            {/* Rank badge */}
+            <div style={{ background: rank.bg, border: `1px solid ${rank.border}`, borderRadius: '16px', padding: '16px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ fontSize: '40px', lineHeight: 1 }}>{rank.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: rank.color, fontWeight: '800', fontSize: '16px' }}>{rank.he}</span>
+                  {rank.next && (
+                    <span style={{ color: '#64748B', fontSize: '12px' }}>
+                      {myRescued.length}/{rank.next.min} לדרגה הבאה
+                    </span>
+                  )}
+                </div>
+                {rank.next ? (
+                  <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${rank.progress}%`, background: rank.color, borderRadius: '3px', transition: 'width 0.5s' }} />
+                  </div>
+                ) : (
+                  <span style={{ color: '#FBBF24', fontSize: '12px', fontWeight: '600' }}>⭐ דרגה מקסימלית!</span>
+                )}
+              </div>
+            </div>
+
             {/* Personal stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '20px' }}>
               {[
@@ -338,7 +363,8 @@ export default function VolunteerDashboard() {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {filter !== 'history' && (reportsLoading ? (
           <p style={{ color: '#94A3B8', textAlign: 'center', padding: '40px' }}>{t('common','loading')}</p>

@@ -51,7 +51,7 @@ export const translations = {
     tagline:      { he: 'עזור לבעלי חיים במצוקה בקליק אחד', en: 'Help animals in distress with one click' },
     subTagline:   { he: 'דווח, עזור, הצילו', en: 'Report, Help, Rescue' },
     statReports:  { he: 'דיווחים', en: 'Reports' },
-    statRescued:  { he: 'חיות הצלו', en: 'Animals rescued' },
+    statRescued:  { he: 'חיות הוצלו', en: 'Animals rescued' },
     statProgress: { he: 'בטיפול', en: 'In progress' },
     statVols:     { he: 'מתנדבים', en: 'Volunteers' },
     ctaReport:    { he: '🚨 דווח על בעל חיים', en: '🚨 Report an animal' },

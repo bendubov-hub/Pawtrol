@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 import { useLang } from '@/lib/lang-context';
+import { getRank } from '@/lib/ranks';
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   pending:     { label: 'ממתין לטיפול', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', icon: '⏳' },
@@ -87,6 +88,8 @@ export default function UserDashboard() {
     rescued: reports.filter(r => r.status === 'rescued').length,
   };
 
+  const rank = getRank(reports.length);
+
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '16px 16px 100px' }}>
       <div style={{ maxWidth: '600px', margin: '0 auto' }}>
@@ -102,6 +105,28 @@ export default function UserDashboard() {
           <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.1)', color: '#FCA5A5', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
             {t('common','logout')}
           </button>
+        </div>
+
+        {/* Rank badge */}
+        <div style={{ background: rank.bg, border: `1px solid ${rank.border}`, borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ fontSize: '40px', lineHeight: 1 }}>{rank.icon}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ color: rank.color, fontWeight: '800', fontSize: '16px' }}>{rank.he}</span>
+              {rank.next && (
+                <span style={{ color: '#64748B', fontSize: '12px' }}>
+                  {reports.length}/{rank.next.min} לדרגה הבאה
+                </span>
+              )}
+            </div>
+            {rank.next ? (
+              <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${rank.progress}%`, background: rank.color, borderRadius: '3px', transition: 'width 0.5s' }} />
+              </div>
+            ) : (
+              <span style={{ color: '#FBBF24', fontSize: '12px', fontWeight: '600' }}>⭐ דרגה מקסימלית!</span>
+            )}
+          </div>
         </div>
 
         {/* Stats row */}

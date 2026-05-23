@@ -8,7 +8,7 @@ import { useLang } from '@/lib/lang-context';
 import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 
-type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats';
+type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats' | 'test';
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   pending:     { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
@@ -215,7 +215,8 @@ export default function AdminPage() {
              ['volunteers', `${t('admin','tabVols')}${pendingVols ? ` (${pendingVols})` : ''}`],
              ['reports', t('admin','tabReports')],
              ['add_org', '➕ הוסף עמותה'],
-             ['stats', '📊 סטטיסטיקות']] as [Tab, string][]).map(([key, label]) => (
+             ['stats', '📊 סטטיסטיקות'],
+             ['test', '🧪 בדיקות']] as [Tab, string][]).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -678,6 +679,20 @@ export default function AdminPage() {
             </div>
           );
         })()}
+
+        {/* Test tab — embed /test page inline */}
+        {tab === 'test' && (
+          <iframe
+            src="/test"
+            style={{
+              width: '100%',
+              height: '700px',
+              border: 'none',
+              borderRadius: '16px',
+              background: 'transparent',
+            }}
+          />
+        )}
 
       </div>
     </div>
