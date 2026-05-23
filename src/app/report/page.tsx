@@ -148,7 +148,6 @@ export default function ReportPage() {
         reportedBy: auth.currentUser?.uid || null,
         reporterFcmToken: reporterFcmToken || null,
         reporterEmail: auth.currentUser?.email || reporterEmail || null,
-        reporterEmail: auth.currentUser?.email || reporterEmail || null,
       });
 
       // Notify orgs + volunteers in background (don't block success)

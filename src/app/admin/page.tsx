@@ -8,7 +8,7 @@ import { useLang } from '@/lib/lang-context';
 import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 
-type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats' | 'test';
+type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats' | 'test' | 'archive';
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   pending:     { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
@@ -78,6 +78,18 @@ export default function AdminPage() {
   const update = async (collection_: string, id: string, data: object) => {
     setUpdatingId(id);
     await updateDoc(doc(db, collection_, id), data);
+    setUpdatingId(null);
+  };
+
+  const archive = async (collection_: string, id: string) => {
+    setUpdatingId(id);
+    await updateDoc(doc(db, collection_, id), { archived: true, archivedAt: new Date() });
+    setUpdatingId(null);
+  };
+
+  const restore = async (collection_: string, id: string) => {
+    setUpdatingId(id);
+    await updateDoc(doc(db, collection_, id), { archived: false, archivedAt: null });
     setUpdatingId(null);
   };
 
@@ -216,6 +228,7 @@ export default function AdminPage() {
              ['reports', t('admin','tabReports')],
              ['add_org', '➕ הוסף עמותה'],
              ['stats', '📊 סטטיסטיקות'],
+             ['archive', `🗂 ארכיון${[...organizations, ...volunteers, ...reports].filter(x => x.archived).length > 0 ? ` (${[...organizations, ...volunteers, ...reports].filter(x => x.archived).length})` : ''}`],
              ['test', '🧪 בדיקות']] as [Tab, string][]).map(([key, label]) => (
             <button
               key={key}
@@ -350,8 +363,8 @@ export default function AdminPage() {
         {/* Organizations */}
         {tab === 'organizations' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {organizations.length === 0 && <EmptyState label={t('admin','noOrgs')} />}
-            {organizations.map(org => (
+            {organizations.filter(o => !o.archived).length === 0 && <EmptyState label={t('admin','noOrgs')} />}
+            {organizations.filter(o => !o.archived).map(org => (
               <Card key={org.id}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                   <div style={{ flex: 1 }}>
@@ -365,22 +378,16 @@ export default function AdminPage() {
                   </div>
                   <StatusBadge status={org.status} />
                 </div>
-                {org.status === 'pending' && (
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                    <ActionButton
-                      label={t('common','approve')}
-                      color="#10B981"
-                      loading={updatingId === org.id}
-                      onClick={() => update('organizations', org.id, { status: 'approved', verified: true })}
-                    />
-                    <ActionButton
-                      label={t('common','reject')}
-                      color="#EF4444"
-                      loading={updatingId === org.id}
-                      onClick={() => update('organizations', org.id, { status: 'rejected' })}
-                    />
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  {org.status === 'pending' && <>
+                    <ActionButton label={t('common','approve')} color="#10B981" loading={updatingId === org.id}
+                      onClick={() => update('organizations', org.id, { status: 'approved', verified: true })} />
+                    <ActionButton label={t('common','reject')} color="#EF4444" loading={updatingId === org.id}
+                      onClick={() => update('organizations', org.id, { status: 'rejected' })} />
+                  </>}
+                  <ActionButton label="🗂 ארכיון" color="#64748B" loading={updatingId === org.id}
+                    onClick={() => archive('organizations', org.id)} />
+                </div>
               </Card>
             ))}
           </div>
@@ -389,8 +396,8 @@ export default function AdminPage() {
         {/* Volunteers */}
         {tab === 'volunteers' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {volunteers.length === 0 && <EmptyState label={t('admin','noVols')} />}
-            {volunteers.map(vol => (
+            {volunteers.filter(v => !v.archived).length === 0 && <EmptyState label={t('admin','noVols')} />}
+            {volunteers.filter(v => !v.archived).map(vol => (
               <Card key={vol.id}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                   <div style={{ flex: 1 }}>
@@ -403,22 +410,16 @@ export default function AdminPage() {
                   </div>
                   <StatusBadge status={vol.status} />
                 </div>
-                {vol.status === 'pending' && (
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                    <ActionButton
-                      label={t('common','approve')}
-                      color="#10B981"
-                      loading={updatingId === vol.id}
-                      onClick={() => update('volunteers', vol.id, { status: 'approved', verified: true })}
-                    />
-                    <ActionButton
-                      label={t('common','reject')}
-                      color="#EF4444"
-                      loading={updatingId === vol.id}
-                      onClick={() => update('volunteers', vol.id, { status: 'rejected' })}
-                    />
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  {vol.status === 'pending' && <>
+                    <ActionButton label={t('common','approve')} color="#10B981" loading={updatingId === vol.id}
+                      onClick={() => update('volunteers', vol.id, { status: 'approved', verified: true })} />
+                    <ActionButton label={t('common','reject')} color="#EF4444" loading={updatingId === vol.id}
+                      onClick={() => update('volunteers', vol.id, { status: 'rejected' })} />
+                  </>}
+                  <ActionButton label="🗂 ארכיון" color="#64748B" loading={updatingId === vol.id}
+                    onClick={() => archive('volunteers', vol.id)} />
+                </div>
               </Card>
             ))}
           </div>
@@ -446,7 +447,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            {reports.map(report => {
+            {reports.filter(r => !r.archived).map(report => {
               const handler = report.handledBy ? volunteers.find(v => v.id === report.handledBy || v.uid === report.handledBy) : null;
               const readyOrgs = (report.readyToReceive || []).map((uid: string) => organizations.find(o => o.id === uid || o.uid === uid)?.name).filter(Boolean);
 
@@ -486,13 +487,15 @@ export default function AdminPage() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-                    {['pending', 'in_progress', 'rescued', 'closed'].map(s => (
+                    {(['pending', 'in_progress', 'rescued', 'closed'] as const).map(s => (
                       <button key={s} disabled={report.status === s || updatingId === report.id}
                         onClick={() => update('reports', report.id, { status: s })}
                         style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${STATUS_COLORS[s].color}`, background: report.status === s ? STATUS_COLORS[s].bg : 'transparent', color: STATUS_COLORS[s].color, fontSize: '12px', fontWeight: '600', cursor: report.status === s ? 'default' : 'pointer', opacity: report.status === s ? 1 : 0.7 }}>
                         {STATUS_LABELS[s]}
                       </button>
                     ))}
+                    <ActionButton label="🗂 ארכיון" color="#64748B" loading={updatingId === report.id}
+                      onClick={() => archive('reports', report.id)} />
                   </div>
                 </Card>
               );
@@ -672,6 +675,79 @@ export default function AdminPage() {
                         </div>
                         <span style={{ color: '#94A3B8', fontSize: '13px', width: '24px', textAlign: 'left' }}>{count}</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Archive tab */}
+        {tab === 'archive' && (() => {
+          const archivedOrgs  = organizations.filter(o => o.archived);
+          const archivedVols  = volunteers.filter(v => v.archived);
+          const archivedReps  = reports.filter(r => r.archived);
+          const total = archivedOrgs.length + archivedVols.length + archivedReps.length;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {total === 0 && <EmptyState label="הארכיון ריק" />}
+
+              {archivedOrgs.length > 0 && (
+                <div>
+                  <p style={{ color: '#64748B', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0 0 10px' }}>🏢 עמותות ({archivedOrgs.length})</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {archivedOrgs.map(org => (
+                      <Card key={org.id}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                          <div>
+                            <p style={{ color: '#94A3B8', fontWeight: '600', margin: '0 0 2px' }}>{org.name}</p>
+                            <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>{org.email} | {org.city}</p>
+                          </div>
+                          <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === org.id}
+                            onClick={() => restore('organizations', org.id)} />
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {archivedVols.length > 0 && (
+                <div>
+                  <p style={{ color: '#64748B', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0 0 10px' }}>🤝 מתנדבים ({archivedVols.length})</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {archivedVols.map(vol => (
+                      <Card key={vol.id}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                          <div>
+                            <p style={{ color: '#94A3B8', fontWeight: '600', margin: '0 0 2px' }}>{vol.name}</p>
+                            <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>{vol.email} | {vol.city}</p>
+                          </div>
+                          <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === vol.id}
+                            onClick={() => restore('volunteers', vol.id)} />
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {archivedReps.length > 0 && (
+                <div>
+                  <p style={{ color: '#64748B', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0 0 10px' }}>📋 דיווחים ({archivedReps.length})</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {archivedReps.map(rep => (
+                      <Card key={rep.id}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                          <div>
+                            <p style={{ color: '#94A3B8', fontWeight: '600', margin: '0 0 2px' }}>{rep.animalType}</p>
+                            <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>📍 {rep.location}</p>
+                          </div>
+                          <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === rep.id}
+                            onClick={() => restore('reports', rep.id)} />
+                        </div>
+                      </Card>
                     ))}
                   </div>
                 </div>
