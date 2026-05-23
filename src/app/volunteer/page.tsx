@@ -38,6 +38,7 @@ interface Report {
   volunteers?: string[];
   handledBy?: string;
   pickedUp?: boolean;
+  archived?: boolean;
   imageDownloadUrl?: string;
 }
 
@@ -192,10 +193,10 @@ export default function VolunteerDashboard() {
     );
   }
 
-  const myRescued = reports.filter(r => r.status === 'rescued' && r.handledBy === user?.uid);
+  const myRescued = reports.filter(r => r.status === 'rescued' && r.handledBy === user?.uid && !r.archived);
   const filteredReports = filter === 'mine'
-    ? reports.filter(r => r.volunteers?.includes(user?.uid || '') && r.status !== 'rescued')
-    : reports.filter(r => r.status !== 'rescued');
+    ? reports.filter(r => !r.archived && r.volunteers?.includes(user?.uid || '') && r.status !== 'rescued')
+    : reports.filter(r => !r.archived && r.status !== 'rescued');
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '16px' }}>

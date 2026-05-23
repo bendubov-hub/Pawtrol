@@ -181,8 +181,12 @@ export default function AdminPage() {
     );
   }
 
-  const pendingOrgs = organizations.filter(o => o.status === 'pending').length;
-  const pendingVols = volunteers.filter(v => v.status === 'pending').length;
+  const activeOrgs  = organizations.filter(o => !o.archived);
+  const activeVols  = volunteers.filter(v => !v.archived);
+  const activeReps  = reports.filter(r => !r.archived);
+
+  const pendingOrgs = activeOrgs.filter(o => o.status === 'pending').length;
+  const pendingVols = activeVols.filter(v => v.status === 'pending').length;
   const pendingApps = applications.filter(a => a.status === 'pending_review').length;
 
   return (
@@ -203,9 +207,9 @@ export default function AdminPage() {
         {/* Summary stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '24px' }}>
           {[
-            { label: t('admin','tabOrgs').replace('🏢 ',''), total: organizations.length, pending: pendingOrgs, color: '#EF4444' },
-            { label: t('admin','tabVols').replace('🤝 ',''), total: volunteers.length, pending: pendingVols, color: '#3B82F6' },
-            { label: t('admin','tabReports').replace('📋 ',''), total: reports.length, pending: reports.filter(r => r.status === 'pending').length, color: '#F97316' },
+            { label: t('admin','tabOrgs').replace('🏢 ',''), total: activeOrgs.length, pending: pendingOrgs, color: '#EF4444' },
+            { label: t('admin','tabVols').replace('🤝 ',''), total: activeVols.length, pending: pendingVols, color: '#3B82F6' },
+            { label: t('admin','tabReports').replace('📋 ',''), total: activeReps.length, pending: activeReps.filter(r => r.status === 'pending').length, color: '#F97316' },
             { label: t('admin','tabApplications').replace('📩 ',''), total: applications.length, pending: pendingApps, color: '#A855F7' },
           ].map(s => (
             <div key={s.label} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${s.color}44`, borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
@@ -431,13 +435,13 @@ export default function AdminPage() {
             {reports.length === 0 && <EmptyState label={t('admin','noReports')} />}
 
             {/* Summary stats */}
-            {reports.length > 0 && (
+            {activeReps.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px', marginBottom: '8px' }}>
                 {[
-                  { label: 'ממתינים', count: reports.filter(r => r.status === 'pending').length, color: '#F59E0B' },
-                  { label: 'בטיפול', count: reports.filter(r => r.status === 'in_progress').length, color: '#3B82F6' },
-                  { label: 'הוצלו', count: reports.filter(r => r.status === 'rescued').length, color: '#10B981' },
-                  { label: 'סה״כ', count: reports.length, color: '#94A3B8' },
+                  { label: 'ממתינים', count: activeReps.filter(r => r.status === 'pending').length, color: '#F59E0B' },
+                  { label: 'בטיפול', count: activeReps.filter(r => r.status === 'in_progress').length, color: '#3B82F6' },
+                  { label: 'הוצלו', count: activeReps.filter(r => r.status === 'rescued').length, color: '#10B981' },
+                  { label: 'סה״כ', count: activeReps.length, color: '#94A3B8' },
                 ].map(s => (
                   <div key={s.label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
                     <p style={{ color: s.color, fontWeight: '800', fontSize: '22px', margin: '0 0 2px' }}>{s.count}</p>
@@ -584,17 +588,17 @@ export default function AdminPage() {
 
         {/* Stats */}
         {tab === 'stats' && (() => {
-          const totalReports   = reports.length;
-          const rescued        = reports.filter(r => r.status === 'rescued').length;
-          const inProgress     = reports.filter(r => r.status === 'in_progress').length;
-          const pending        = reports.filter(r => r.status === 'pending').length;
-          const activeVols     = volunteers.filter(v => v.available).length;
-          const approvedOrgs   = organizations.filter(o => o.status === 'approved').length;
+          const totalReports   = activeReps.length;
+          const rescued        = activeReps.filter(r => r.status === 'rescued').length;
+          const inProgress     = activeReps.filter(r => r.status === 'in_progress').length;
+          const pending        = activeReps.filter(r => r.status === 'pending').length;
+          const activeVolsNow  = activeVols.filter(v => v.available).length;
+          const approvedOrgs   = activeOrgs.filter(o => o.status === 'approved').length;
           const rescueRate     = totalReports ? Math.round((rescued / totalReports) * 100) : 0;
 
           // Top animal types
           const animalCount: Record<string, number> = {};
-          reports.forEach(r => {
+          activeReps.forEach(r => {
             const key = r.animalType || 'אחר';
             animalCount[key] = (animalCount[key] || 0) + 1;
           });
@@ -606,7 +610,7 @@ export default function AdminPage() {
           const last7 = Array.from({ length: 7 }, (_, i) => {
             const d = new Date(now - (6 - i) * day);
             const label = `${d.getDate()}/${d.getMonth() + 1}`;
-            const count = reports.filter(r => {
+            const count = activeReps.filter(r => {
               const ts = r.timestamp?.toDate?.()?.getTime?.() || 0;
               return ts >= now - (6 - i) * day && ts < now - (5 - i) * day;
             }).length;
@@ -636,11 +640,11 @@ export default function AdminPage() {
               {/* People stats */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px' }}>
                 <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
-                  <div style={{ color: '#6EE7B7', fontWeight: '800', fontSize: '24px' }}>{activeVols}</div>
+                  <div style={{ color: '#6EE7B7', fontWeight: '800', fontSize: '24px' }}>{activeVolsNow}</div>
                   <div style={{ color: '#64748B', fontSize: '12px' }}>מתנדבים זמינים</div>
                 </div>
                 <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
-                  <div style={{ color: '#C4B5FD', fontWeight: '800', fontSize: '24px' }}>{volunteers.length}</div>
+                  <div style={{ color: '#C4B5FD', fontWeight: '800', fontSize: '24px' }}>{activeVols.length}</div>
                   <div style={{ color: '#64748B', fontSize: '12px' }}>סה״כ מתנדבים</div>
                 </div>
                 <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>

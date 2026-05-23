@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
     const orgsSnap = await adminDb.collection('organizations').where('status', '==', 'approved').get();
     for (const d of orgsSnap.docs) {
       const org = d.data();
+      if (org.archived) continue;
       if (!orgMatchesAnimal(org.animalTypes || [], animalType)) continue;
       if (org.email) {
         await transporter.sendMail({
@@ -104,9 +105,9 @@ export async function POST(req: NextRequest) {
       if (org.uid) await sendPush(org.uid, `🚨 דיווח חדש: ${animalType}`, `${location} — לחץ לפרטים`, dashOrg);
     }
 
-    // ── 2. Get all volunteers ──
+    // ── 2. Get all non-archived volunteers ──
     const volsSnap = await adminDb.collection('volunteers').get();
-    const vols = volsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+    const vols = volsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(v => !v.archived);
 
     // Score volunteers: available=true gets priority, then by distance
     type VolEntry = { vol: any; dist: number; available: boolean };
