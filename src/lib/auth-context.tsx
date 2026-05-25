@@ -11,6 +11,7 @@ interface UserProfile {
   role: 'organization' | 'volunteer' | 'admin' | 'user' | null;
   name?: string;
   status?: string;
+  phone?: string;
 }
 
 interface AuthContextType {
@@ -34,12 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const orgSnap = await getDoc(doc(db, 'organizations', firebaseUser.uid));
         if (orgSnap.exists()) {
           const data = orgSnap.data();
-          setProfile({ uid: firebaseUser.uid, email: firebaseUser.email!, role: 'organization', name: data.name, status: data.status });
+          setProfile({ uid: firebaseUser.uid, email: firebaseUser.email!, role: 'organization', name: data.name, status: data.status, phone: data.phone });
         } else {
           const volSnap = await getDoc(doc(db, 'volunteers', firebaseUser.uid));
           if (volSnap.exists()) {
             const data = volSnap.data();
-            setProfile({ uid: firebaseUser.uid, email: firebaseUser.email!, role: 'volunteer', name: data.name, status: data.status });
+            setProfile({ uid: firebaseUser.uid, email: firebaseUser.email!, role: 'volunteer', name: data.name, status: data.status, phone: data.phone });
           } else {
             const adminSnap = await getDoc(doc(db, 'admins', firebaseUser.uid));
             if (adminSnap.exists()) {
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const userSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
               if (userSnap.exists()) {
                 const data = userSnap.data();
-                setProfile({ uid: firebaseUser.uid, email: firebaseUser.email!, role: 'user', name: data.name });
+                setProfile({ uid: firebaseUser.uid, email: firebaseUser.email!, role: 'user', name: data.name, phone: data.phone });
               } else {
                 setProfile({ uid: firebaseUser.uid, email: firebaseUser.email!, role: null });
               }

@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
 import { useLang } from '@/lib/lang-context';
+import { useAuth } from '@/lib/auth-context';
 
 const ANIMALS = [
   { he: 'כלב', en: 'Dog', emoji: '🐕' },
@@ -36,6 +37,7 @@ const ANIMALS = [
 
 export default function ReportPage() {
   const { t, lang } = useLang();
+  const { profile } = useAuth();
   const [step, setStep] = useState(1);
 
   // Media
@@ -57,7 +59,7 @@ export default function ReportPage() {
   const [stillThere, setStillThere] = useState<boolean | null>(null);
   const [description, setDescription] = useState('');
   const [reporterEmail, setReporterEmail] = useState('');
-  const [reporterPhone, setReporterPhone] = useState('');
+  const [reporterPhone, setReporterPhone] = useState(profile?.phone || '');
 
   // Report created at step 1→2
   const [reportId, setReportId] = useState<string | null>(null);
@@ -398,17 +400,21 @@ export default function ReportPage() {
                 ))}
               </div>
 
-              {/* Phone number */}
-              <p style={{ color: '#94A3B8', fontSize: '12px', marginBottom: '6px', fontWeight: '600' }}>
-                📞 טלפון ליצירת קשר (יועבר למתנדב)
+              {/* Phone number — required */}
+              <p style={{ color: '#CBD5E1', fontSize: '13px', marginBottom: '6px', fontWeight: '700' }}>
+                📞 טלפון ליצירת קשר <span style={{ color: '#EF4444' }}>*</span>
               </p>
               <input
                 type="tel"
                 value={reporterPhone}
                 onChange={e => setReporterPhone(e.target.value)}
                 placeholder="050-0000000"
-                style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'white', fontSize: '14px', marginBottom: '16px', boxSizing: 'border-box' }}
+                required
+                style={{ width: '100%', padding: '12px 14px', background: reporterPhone ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.08)', border: `1px solid ${reporterPhone ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.15)'}`, borderRadius: '10px', color: 'white', fontSize: '15px', marginBottom: '4px', boxSizing: 'border-box' }}
               />
+              <p style={{ color: '#475569', fontSize: '11px', marginBottom: '14px' }}>
+                המתנדב יוכל להתקשר אליך ישירות
+              </p>
 
               {/* Email — only if not logged in */}
               {!auth.currentUser && (
@@ -439,8 +445,8 @@ export default function ReportPage() {
 
               <button
                 type="submit"
-                disabled={stepLoading}
-                style={{ width: '100%', background: stepLoading ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: stepLoading ? 'not-allowed' : 'pointer', fontSize: '15px' }}
+                disabled={stepLoading || !reporterPhone}
+                style={{ width: '100%', background: stepLoading || !reporterPhone ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: stepLoading || !reporterPhone ? 'not-allowed' : 'pointer', fontSize: '15px', opacity: reporterPhone ? 1 : 0.5 }}
               >
                 {stepLoading ? t('report', 'submitting') : '✅ סיימתי — שמור פרטים'}
               </button>
