@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Link from 'next/link';
@@ -43,7 +43,25 @@ function JoinForm() {
 
     setSubmitting(true);
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, invite.email, password);
+      let user;
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, invite.email, password);
+        user = cred.user;
+      } catch (createErr: any) {
+        if (createErr.code === 'auth/email-already-in-use') {
+          // Email already in Firebase Auth — sign in instead (same invite, same person)
+          try {
+            const cred = await signInWithEmailAndPassword(auth, invite.email, password);
+            user = cred.user;
+          } catch {
+            setError('המייל הזה כבר רשום. אם שכחת סיסמה, בטל את ההרשמה ופנה לאדמין לשלוח זימון חדש.');
+            setSubmitting(false);
+            return;
+          }
+        } else {
+          throw createErr;
+        }
+      }
       const isOrg = invite.type === 'organization';
 
       if (isOrg) {
@@ -77,11 +95,7 @@ function JoinForm() {
       setStatus('done');
       setTimeout(() => router.push(isOrg ? '/organizations' : '/volunteer'), 2000);
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
-        setError(t('join','emailInUse'));
-      } else {
-        setError(err.message || t('common','error'));
-      }
+      setError(err.message || t('common','error'));
     } finally {
       setSubmitting(false);
     }
