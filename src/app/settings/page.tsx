@@ -146,6 +146,32 @@ export default function SettingsPage() {
             }}>
               {t('settings','logoutBtn')}
             </button>
+
+            {/* Delete account */}
+            <button
+              onClick={async () => {
+                if (!confirm('מחיקת החשבון תמחק את כל המידע שלך לצמיתות. להמשיך?')) return;
+                try {
+                  const token = await user!.getIdToken();
+                  const res = await fetch('/api/delete-account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ callerToken: token }),
+                  });
+                  const json = await res.json();
+                  if (json.ok) router.push('/');
+                  else alert('שגיאה: ' + json.error);
+                } catch (e: any) { alert('שגיאה: ' + e.message); }
+              }}
+              style={{
+                width: '100%', padding: '12px',
+                background: 'transparent', border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: '12px', color: '#64748B', fontWeight: '600', fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              🗑 מחק את החשבון שלי
+            </button>
           </div>
         )}
       </div>

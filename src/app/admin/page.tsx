@@ -8,7 +8,7 @@ import { useLang } from '@/lib/lang-context';
 import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 
-type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats' | 'test' | 'archive';
+type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats' | 'test' | 'archive' | 'users';
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   pending:     { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
@@ -239,6 +239,7 @@ export default function AdminPage() {
              ['reports', t('admin','tabReports')],
              ['add_org', '➕ הוסף עמותה'],
              ['stats', '📊 סטטיסטיקות'],
+             ['users', '👤 משתמשים'],
              ['archive', `🗂 ארכיון${[...organizations, ...volunteers, ...reports].filter(x => x.archived).length > 0 ? ` (${[...organizations, ...volunteers, ...reports].filter(x => x.archived).length})` : ''}`],
              ['test', '🧪 בדיקות']] as [Tab, string][]).map(([key, label]) => (
             <button
@@ -690,6 +691,69 @@ export default function AdminPage() {
                   </div>
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* Users tab */}
+        {tab === 'users' && (() => {
+          const allUsers = [
+            ...activeVols.map(v => ({ ...v, _type: 'מתנדב', _col: 'volunteers' })),
+            ...activeOrgs.map(o => ({ ...o, _type: 'עמותה', _col: 'organizations' })),
+          ];
+
+          const deleteUser = async (uid: string, col: string, name: string) => {
+            if (!confirm(`מחיקת ${name} — תמחק את החשבון מ-Firebase לחלוטין. להמשיך?`)) return;
+            try {
+              const token = await auth.currentUser!.getIdToken();
+              const res = await fetch('/api/admin/delete-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUid: uid, callerToken: token }),
+              });
+              const json = await res.json();
+              if (!json.ok) alert('שגיאה: ' + json.error);
+            } catch (e: any) { alert('שגיאה: ' + e.message); }
+          };
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <p style={{ color: '#64748B', fontSize: '12px', margin: '0 0 8px' }}>
+                {allUsers.length} משתמשים פעילים — מחיקה תסיר גם מ-Firebase Authentication
+              </p>
+              {allUsers.length === 0 && <EmptyState label="אין משתמשים" />}
+              {allUsers.map(u => (
+                <Card key={u.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                        <span style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>{u.name}</span>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: u._type === 'מתנדב' ? 'rgba(59,130,246,0.15)' : 'rgba(239,68,68,0.15)', color: u._type === 'מתנדב' ? '#93C5FD' : '#FCA5A5', fontWeight: '600' }}>
+                          {u._type}
+                        </span>
+                        <StatusBadge status={u.status} />
+                      </div>
+                      <p style={{ color: '#64748B', fontSize: '12px', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {u.email} {u.city ? `· ${u.city}` : ''} {u.phone ? `· ${u.phone}` : ''}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                      <ActionButton
+                        label="🗂 ארכיון"
+                        color="#64748B"
+                        loading={updatingId === u.id}
+                        onClick={() => archive(u._col, u.id)}
+                      />
+                      <ActionButton
+                        label="🗑 מחק"
+                        color="#EF4444"
+                        loading={updatingId === u.id}
+                        onClick={() => deleteUser(u.uid || u.id, u._col, u.name)}
+                      />
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
           );
         })()}

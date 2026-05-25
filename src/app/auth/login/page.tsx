@@ -295,6 +295,11 @@ export default function LoginPage() {
             {t('login', 'backHome')}
           </p>
         </Link>
+
+        <p style={{ color: '#334155', fontSize: '11px', textAlign: 'center', marginTop: '16px' }}>
+          בהתחברות אתה מסכים ל
+          <Link href="/privacy" style={{ color: '#475569', textDecoration: 'underline' }}>מדיניות הפרטיות</Link>
+        </p>
       </div>
     </div>
   );
