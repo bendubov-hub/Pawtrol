@@ -2,8 +2,8 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Link from 'next/link';
 import { useLang } from '@/lib/lang-context';
@@ -43,59 +43,29 @@ function JoinForm() {
 
     setSubmitting(true);
     try {
-      let user;
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, invite.email, password);
-        user = cred.user;
-      } catch (createErr: any) {
-        if (createErr.code === 'auth/email-already-in-use') {
-          // Email already in Firebase Auth — sign in instead (same invite, same person)
-          try {
-            const cred = await signInWithEmailAndPassword(auth, invite.email, password);
-            user = cred.user;
-          } catch {
-            setError('המייל הזה כבר רשום. אם שכחת סיסמה, בטל את ההרשמה ופנה לאדמין לשלוח זימון חדש.');
-            setSubmitting(false);
-            return;
-          }
-        } else {
-          throw createErr;
-        }
-      }
-      const isOrg = invite.type === 'organization';
+      // API handles create-or-update via Admin SDK (works even if email already exists)
+      const res = await fetch('/api/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const json = await res.json();
 
-      if (isOrg) {
-        // Update organization doc with real uid
-        if (invite.orgId) {
-          await updateDoc(doc(db, 'organizations', invite.orgId), { uid: user.uid });
-          // Also create with uid as doc ID for auth-context lookup
-          await setDoc(doc(db, 'organizations', user.uid), {
-            uid: user.uid, name: invite.name, email: invite.email, phone: invite.phone,
-            city: invite.city, address: invite.address, description: invite.description,
-            website: invite.website, animalTypes: invite.animalTypes,
-            registrationNumber: invite.registrationNumber,
-            status: 'approved', verified: true, createdAt: new Date(),
-          });
-        }
-      } else {
-        // Create volunteer document
-        await setDoc(doc(db, 'volunteers', user.uid), {
-          uid: user.uid, name: invite.fullName, email: invite.email, phone: invite.phone,
-          city: invite.city, address: invite.address, hasCar: invite.hasCar,
-          availableHours: invite.availableHours, available: false,
-          status: 'approved', verified: true, createdAt: new Date(),
-        });
-        if (invite.applicationId) {
-          await updateDoc(doc(db, 'volunteer_applications', invite.applicationId), { accountCreated: true });
-        }
+      if (!res.ok) {
+        if (json.error === 'used') { setStatus('used'); return; }
+        if (json.error === 'expired') { setStatus('expired'); return; }
+        if (json.error === 'invalid_token') { setStatus('invalid'); return; }
+        setError(json.error || t('common', 'error'));
+        return;
       }
 
-      await updateDoc(doc(db, 'invites', token!), { used: true, usedAt: new Date().toISOString() });
+      // Sign in client-side now that the account is ready
+      await signInWithEmailAndPassword(auth, invite.email, password);
 
       setStatus('done');
-      setTimeout(() => router.push(isOrg ? '/organizations' : '/volunteer'), 2000);
+      setTimeout(() => router.push(json.isOrg ? '/organizations' : '/volunteer'), 2000);
     } catch (err: any) {
-      setError(err.message || t('common','error'));
+      setError(err.message || t('common', 'error'));
     } finally {
       setSubmitting(false);
     }
