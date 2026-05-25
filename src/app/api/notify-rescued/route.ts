@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+import { sendEmail } from '@/lib/email';
 import { adminDb, adminMessaging } from '@/lib/firebase-admin';
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
-});
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,10 +33,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Email fallback if no push or as supplement
     if (reporterEmail && !sent) {
-      await transporter.sendMail({
-        from: `"Pawtrol 🐾" <${process.env.GMAIL_USER}>`,
-        to: reporterEmail,
-        subject: `🎉 ${animalType} הוצל! — Pawtrol`,
+      await sendEmail(reporterEmail, `🎉 ${animalType} הוצל! — Pawtrol`,
         html: `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#0f172a;font-family:Arial,sans-serif">
 <div style="max-width:480px;margin:0 auto;padding:32px 16px;text-align:center">
@@ -55,8 +47,7 @@ export async function POST(req: NextRequest) {
     </p>
   </div>
   <p style="color:#475569;font-size:12px">Pawtrol · pawtrolit.org</p>
-</div></body></html>`,
-      });
+</div></body></html>`);
       sent = true;
     }
 

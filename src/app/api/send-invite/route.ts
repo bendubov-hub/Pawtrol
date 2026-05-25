@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+import { sendEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   const { email, fullName, token, city } = await req.json();
 
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
-
-  const joinUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/join?token=${token}`;
+  const joinUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://pawtrolit.org'}/join?token=${token}`;
 
   const html = `
 <!DOCTYPE html>
@@ -54,12 +46,7 @@ export async function POST(req: NextRequest) {
 </html>`;
 
   try {
-    await transporter.sendMail({
-      from: `"Pawtrol 🐾" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: `🐾 התקבלת כמתנדב ב-Pawtrol!`,
-      html,
-    });
+    await sendEmail(email, `🐾 התקבלת כמתנדב ב-Pawtrol!`, html);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('Invite email error:', err);

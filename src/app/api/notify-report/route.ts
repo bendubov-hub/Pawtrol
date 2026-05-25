@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+import { sendEmail } from '@/lib/email';
 import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 
 function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -25,10 +25,6 @@ function orgMatchesAnimal(orgTypes: string[], animal: string): boolean {
   });
 }
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
-});
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pawtrolit.org';
 
@@ -95,12 +91,7 @@ export async function POST(req: NextRequest) {
       if (org.archived) continue;
       if (!orgMatchesAnimal(org.animalTypes || [], animalType)) continue;
       if (org.email) {
-        await transporter.sendMail({
-          from: `"Pawtrol 🐾" <${process.env.GMAIL_USER}>`,
-          to: org.email,
-          subject: `🚨 דיווח חדש: ${animalType}`,
-          html: emailHtml({ name: org.name || 'עמותה', role: 'org', animalType, location, reportId, imageUrl, stillThere, description }),
-        });
+        await sendEmail(org.email, `🚨 דיווח חדש: ${animalType}`, emailHtml({ name: org.name || 'עמותה', role: 'org', animalType, location, reportId, imageUrl, stillThere, description }));
       }
       if (org.uid) await sendPush(org.uid, `🚨 דיווח חדש: ${animalType}`, `${location} — לחץ לפרטים`, dashOrg);
     }
@@ -144,12 +135,7 @@ export async function POST(req: NextRequest) {
       const pushBody  = urgent ? 'נדרשת עזרה דחופה — אף מתנדב לא זמין כרגע' : `${location}`;
 
       if (vol.email) {
-        await transporter.sendMail({
-          from: `"Pawtrol 🐾" <${process.env.GMAIL_USER}>`,
-          to: vol.email,
-          subject: urgent ? `🚨 דחוף! אין מתנדב — ${animalType}` : `🐾 דיווח חדש: ${animalType}`,
-          html: emailHtml({ name: vol.name || 'מתנדב', role: 'vol', urgent, animalType, location, reportId, imageUrl, stillThere, description }),
-        });
+        await sendEmail(vol.email, urgent ? `🚨 דחוף! אין מתנדב — ${animalType}` : `🐾 דיווח חדש: ${animalType}`, emailHtml({ name: vol.name || 'מתנדב', role: 'vol', urgent, animalType, location, reportId, imageUrl, stillThere, description }));
       }
       await sendPush(vol.uid || vol.id, pushTitle, pushBody, dashVol);
     }

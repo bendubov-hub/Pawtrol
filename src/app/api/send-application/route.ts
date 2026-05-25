@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+import { sendEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   const data = await req.json();
   const docId = data.docId || `${Date.now()}`;
-
-  // Send email in background (don't fail the request if email fails)
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
 
   const row = (label: string, value: string) =>
     `<tr><td style="padding:8px 12px;color:#94a3b8;font-size:13px;white-space:nowrap;vertical-align:top">${label}</td><td style="padding:8px 12px;color:#f1f5f9;font-size:13px;font-weight:600">${value || '—'}</td></tr>`;
@@ -54,12 +45,7 @@ export async function POST(req: NextRequest) {
 </body></html>`;
 
   try {
-    await transporter.sendMail({
-      from: `"Pawtrol 🐾" <${process.env.GMAIL_USER}>`,
-      to: process.env.ADMIN_EMAIL || process.env.GMAIL_USER,
-      subject: `🐾 בקשת מתנדב חדשה — ${data.fullName} מ${data.city}`,
-      html,
-    });
+    await sendEmail(process.env.ADMIN_EMAIL || 'bendubov@gmail.com', `🐾 בקשת מתנדב חדשה — ${data.fullName} מ${data.city}`, html);
   } catch (emailErr) {
     console.error('Email failed (application still saved):', emailErr);
   }
