@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Link from 'next/link';
 import BottomNav from '@/components/BottomNav';
@@ -57,8 +57,13 @@ export default function ReportPage() {
   const [stillThere, setStillThere] = useState<boolean | null>(null);
   const [description, setDescription] = useState('');
   const [reporterEmail, setReporterEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [emailSaved, setEmailSaved] = useState(false);
+  const [reporterPhone, setReporterPhone] = useState('');
+
+  // Report created at step 1→2
+  const [reportId, setReportId] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
+
+  const [stepLoading, setStepLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const filtered = ANIMALS.filter(a =>
@@ -112,12 +117,11 @@ export default function ReportPage() {
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!image || !location || !animalType) return;
-    setLoading(true);
+  // ── STEP 1 → 2: upload image + create report immediately ──
+  const handleStep1Continue = async () => {
+    if (!image || !location) return;
+    setStepLoading(true);
     try {
-      // Get reporter's FCM token for push notifications (works even anonymous)
       let reporterFcmToken: string | null = null;
       try {
         const { registerFcmToken } = await import('@/lib/fcm');
@@ -127,7 +131,8 @@ export default function ReportPage() {
       const ts = Date.now();
       const mainRef = ref(storage, `reports/${ts}_${image.name}`);
       await uploadBytes(mainRef, image);
-      const imageUrl = await getDownloadURL(mainRef);
+      const url = await getDownloadURL(mainRef);
+      setImageUrl(url);
 
       const extraUrls: string[] = [];
       for (const file of extraMedia) {
@@ -136,38 +141,75 @@ export default function ReportPage() {
         extraUrls.push(await getDownloadURL(eRef));
       }
 
-      const reportRef = await addDoc(collection(db, 'reports'), {
-        animalType,
+      const docRef = await addDoc(collection(db, 'reports'), {
         location,
-        description,
-        stillThere,
-        timestamp: serverTimestamp(),
-        imageUrl,
+        imageUrl: url,
         extraMedia: extraUrls,
         status: 'pending',
+        timestamp: serverTimestamp(),
         reportedBy: auth.currentUser?.uid || null,
         reporterFcmToken: reporterFcmToken || null,
-        reporterEmail: auth.currentUser?.email || reporterEmail || null,
+        reporterEmail: auth.currentUser?.email || null,
+        // animalType, phone, description, stillThere filled in next steps
       });
 
-      // Notify orgs + volunteers in background (don't block success)
+      setReportId(docRef.id);
+      setStep(2);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setStepLoading(false);
+    }
+  };
+
+  // ── STEP 2 → 3: update animal type + send notifications ──
+  const handleStep2Continue = async () => {
+    if (!animalType || !reportId) return;
+    setStepLoading(true);
+    try {
+      await updateDoc(doc(db, 'reports', reportId), { animalType });
+
+      // Send notifications now — we have location + animal type
       fetch('/api/notify-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ animalType, location, reportId: reportRef.id, imageUrl, stillThere, description }),
+        body: JSON.stringify({ animalType, location, reportId, imageUrl }),
       }).catch(() => {});
+
+      setStep(3);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setStepLoading(false);
+    }
+  };
+
+  // ── STEP 3: update remaining details ──
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportId) return;
+    setStepLoading(true);
+    try {
+      await updateDoc(doc(db, 'reports', reportId), {
+        stillThere,
+        description,
+        reporterPhone: reporterPhone || null,
+        reporterEmail: auth.currentUser?.email || reporterEmail || null,
+      });
 
       setSuccess(true);
       setTimeout(() => {
         setImage(null); setPreview(''); setAnimalType(''); setAnimalSearch('');
         setExtraMedia([]); setExtraPreviews([]);
         setLocation(''); setDescription(''); setStillThere(null);
+        setReporterPhone(''); setReporterEmail('');
+        setReportId(null); setImageUrl('');
         setStep(1); setSuccess(false);
       }, 3000);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      setStepLoading(false);
     }
   };
 
@@ -178,7 +220,6 @@ export default function ReportPage() {
         <h1 style={{ fontSize: '28px', fontWeight: '900', color: 'white', marginBottom: '8px' }}>{t('report', 'successTitle')}</h1>
         <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.9)', marginBottom: '6px' }}>{t('report', 'successMsg')}</p>
         <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)' }}>{t('report', 'successSub')}</p>
-        <style>{`@keyframes bounce{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}`}</style>
       </div>
     );
   }
@@ -218,7 +259,6 @@ export default function ReportPage() {
                 <>
                   <img src={preview} alt="preview" style={{ width: '100%', borderRadius: '14px', marginBottom: '12px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.4)' }} />
 
-                  {/* Extra media thumbnails */}
                   {extraPreviews.length > 0 && (
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
                       {extraPreviews.map((src, i) => (
@@ -227,15 +267,31 @@ export default function ReportPage() {
                     </div>
                   )}
 
-                  {/* Add more media */}
                   <label style={{ display: 'block', background: 'rgba(255,255,255,0.06)', color: '#94A3B8', padding: '11px', borderRadius: '10px', textAlign: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '600', marginBottom: '10px', border: '1.5px dashed rgba(255,255,255,0.15)' }}>
                     📎 {t('report', 'addMoreMedia')} ({extraMedia.length})
                     <input type="file" accept="image/*,video/*" multiple onChange={handleExtraMedia} style={{ display: 'none' }} />
                   </label>
 
-                  <button type="button" onClick={() => setStep(2)} style={{ width: '100%', background: 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '16px', marginBottom: '10px' }}>
-                    {t('common', 'continue')}
+                  {/* Location status */}
+                  {location ? (
+                    <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.1)', borderRadius: '10px', border: '1px solid rgba(16,185,129,0.4)', marginBottom: '10px' }}>
+                      <p style={{ color: '#10B981', fontSize: '13px', fontWeight: '600', margin: 0 }}>📍 {t('report', 'locationFound')}</p>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={handleGetLocation} disabled={locationLoading} style={{ width: '100%', background: 'rgba(16,185,129,0.15)', color: '#6EE7B7', fontWeight: '600', padding: '11px', borderRadius: '10px', border: '1px solid rgba(16,185,129,0.4)', cursor: 'pointer', fontSize: '13px', marginBottom: '10px' }}>
+                      {locationLoading ? t('report', 'gettingLoc') : `📍 ${t('report', 'getLocation')}`}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleStep1Continue}
+                    disabled={!location || stepLoading}
+                    style={{ width: '100%', background: location && !stepLoading ? 'linear-gradient(135deg,#EF4444,#DC2626)' : 'rgba(255,255,255,0.08)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: location && !stepLoading ? 'pointer' : 'not-allowed', fontSize: '16px', marginBottom: '10px', opacity: location ? 1 : 0.5 }}
+                  >
+                    {stepLoading ? '⏳ שולח דיווח...' : t('common', 'continue')}
                   </button>
+
                   <label style={{ display: 'block', background: 'rgba(255,255,255,0.08)', color: 'white', padding: '11px', borderRadius: '10px', textAlign: 'center', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
                     {t('report', 'changePhoto')}
                     <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
@@ -243,14 +299,12 @@ export default function ReportPage() {
                 </>
               ) : (
                 <>
-                  {/* Camera button */}
                   <label style={{ display: 'block', background: 'linear-gradient(135deg,#EF4444,#F97316)', color: 'white', padding: '40px 16px', borderRadius: '16px', textAlign: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px', marginBottom: '12px' }}>
                     <div style={{ fontSize: '52px', marginBottom: '10px' }}>📸</div>
                     <div>{t('report', 'openCamera')}</div>
                     <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} style={{ display: 'none' }} />
                   </label>
 
-                  {/* Gallery button */}
                   <label style={{ display: 'block', background: 'rgba(255,255,255,0.08)', color: 'white', padding: '16px', borderRadius: '14px', textAlign: 'center', cursor: 'pointer', fontWeight: '700', fontSize: '15px', border: '2px solid rgba(255,255,255,0.15)', marginBottom: '10px' }}>
                     <span style={{ marginLeft: '8px' }}>🖼️</span> {t('report', 'chooseFromGallery')}
                     <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
@@ -264,19 +318,23 @@ export default function ReportPage() {
             </div>
           )}
 
-          {/* ── STEP 2: ANIMAL (searchable) ── */}
+          {/* ── STEP 2: ANIMAL ── */}
           {step === 2 && (
             <div style={{ animation: 'fadeIn 0.3s' }}>
+              {/* Dispatch confirmation */}
+              <div style={{ padding: '12px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: '12px', marginBottom: '20px' }}>
+                <p style={{ color: '#6EE7B7', fontSize: '13px', fontWeight: '700', margin: '0 0 2px' }}>✅ הדיווח נשלח — מחפשים מתנדב</p>
+                <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>המשך למלא פרטים בזמן שמתנדב בדרך</p>
+              </div>
+
               <h2 style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff', marginBottom: '16px' }}>{t('report', 'step2')}</h2>
 
-              {/* Selected badge */}
               {animalType && (
                 <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.12)', border: '1.5px solid rgba(239,68,68,0.4)', borderRadius: '10px', color: '#FCA5A5', fontWeight: '700', marginBottom: '12px', fontSize: '15px' }}>
                   {animalType} ✓
                 </div>
               )}
 
-              {/* Search input */}
               <div style={{ position: 'relative', marginBottom: '8px' }}>
                 <input
                   type="text"
@@ -307,30 +365,21 @@ export default function ReportPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                {backBtn(() => setStep(1))}
-                <button type="button" onClick={() => { if (animalType) setStep(3); }} disabled={!animalType} style={{ flex: 1, background: animalType ? 'linear-gradient(135deg,#EF4444,#DC2626)' : 'rgba(255,255,255,0.08)', color: 'white', fontWeight: 'bold', padding: '13px', borderRadius: '12px', border: 'none', cursor: animalType ? 'pointer' : 'not-allowed', opacity: animalType ? 1 : 0.5 }}>
-                  {t('common', 'continue')}
+                <button
+                  type="button"
+                  onClick={handleStep2Continue}
+                  disabled={!animalType || stepLoading}
+                  style={{ flex: 1, background: animalType && !stepLoading ? 'linear-gradient(135deg,#EF4444,#DC2626)' : 'rgba(255,255,255,0.08)', color: 'white', fontWeight: 'bold', padding: '13px', borderRadius: '12px', border: 'none', cursor: animalType && !stepLoading ? 'pointer' : 'not-allowed', opacity: animalType ? 1 : 0.5 }}>
+                  {stepLoading ? '⏳...' : t('common', 'continue')}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 3: LOCATION + DETAILS ── */}
+          {/* ── STEP 3: DETAILS ── */}
           {step === 3 && (
             <div style={{ animation: 'fadeIn 0.3s' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff', marginBottom: '16px' }}>{t('report', 'step3')}</h2>
-
-              {/* Location */}
-              {location ? (
-                <div style={{ padding: '13px 16px', background: 'rgba(16,185,129,0.1)', borderRadius: '12px', border: '2px solid #10B981', marginBottom: '16px' }}>
-                  <p style={{ color: '#10B981', fontWeight: '600', marginBottom: '3px', fontSize: '14px' }}>{t('report', 'locationFound')}</p>
-                  <p style={{ fontSize: '12px', color: '#6EE7B7', margin: 0 }}>{location}</p>
-                </div>
-              ) : (
-                <button type="button" onClick={handleGetLocation} disabled={locationLoading} style={{ width: '100%', background: 'linear-gradient(135deg,#10B981,#059669)', color: 'white', fontWeight: 'bold', padding: '13px', borderRadius: '12px', border: 'none', cursor: 'pointer', marginBottom: '16px' }}>
-                  {locationLoading ? t('report', 'gettingLoc') : t('report', 'getLocation')}
-                </button>
-              )}
+              <h2 style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff', marginBottom: '16px' }}>פרטים נוספים</h2>
 
               {/* Still there? */}
               <p style={{ color: '#CBD5E1', fontSize: '14px', fontWeight: '600', marginBottom: '10px' }}>
@@ -349,32 +398,31 @@ export default function ReportPage() {
                 ))}
               </div>
 
-              {/* Reporter email — only if not logged in */}
+              {/* Phone number */}
+              <p style={{ color: '#94A3B8', fontSize: '12px', marginBottom: '6px', fontWeight: '600' }}>
+                📞 טלפון ליצירת קשר (יועבר למתנדב)
+              </p>
+              <input
+                type="tel"
+                value={reporterPhone}
+                onChange={e => setReporterPhone(e.target.value)}
+                placeholder="050-0000000"
+                style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'white', fontSize: '14px', marginBottom: '16px', boxSizing: 'border-box' }}
+              />
+
+              {/* Email — only if not logged in */}
               {!auth.currentUser && (
                 <div style={{ marginBottom: '16px' }}>
                   <p style={{ color: '#94A3B8', fontSize: '12px', marginBottom: '6px', fontWeight: '600' }}>
                     🔔 {t('report', 'notifyMeHint')}
                   </p>
-                  {emailSaved ? (
-                    <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10B981', borderRadius: '10px', color: '#6EE7B7', fontSize: '13px', fontWeight: '600' }}>
-                      ✅ {t('report', 'notifyMeSaved')}
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="email"
-                        value={reporterEmail}
-                        onChange={e => setReporterEmail(e.target.value)}
-                        placeholder={t('report', 'notifyMePlaceholder')}
-                        style={{ flex: 1, padding: '10px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'white', fontSize: '13px', boxSizing: 'border-box' as const }}
-                      />
-                      {reporterEmail && (
-                        <button type="button" onClick={() => setEmailSaved(true)} style={{ padding: '10px 14px', background: '#10B981', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}>
-                          ✓
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <input
+                    type="email"
+                    value={reporterEmail}
+                    onChange={e => setReporterEmail(e.target.value)}
+                    placeholder={t('report', 'notifyMePlaceholder')}
+                    style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }}
+                  />
                 </div>
               )}
 
@@ -386,15 +434,20 @@ export default function ReportPage() {
                 placeholder={t('report', 'descriptionPlaceholder')}
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                style={{ width: '100%', padding: '13px 16px', background: 'rgba(255,255,255,0.08)', color: 'white', borderRadius: '12px', border: '2px solid rgba(255,255,255,0.15)', fontSize: '14px', marginBottom: '16px', resize: 'none', height: '110px', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '13px 16px', background: 'rgba(255,255,255,0.08)', color: 'white', borderRadius: '12px', border: '2px solid rgba(255,255,255,0.15)', fontSize: '14px', marginBottom: '16px', resize: 'none', height: '100px', boxSizing: 'border-box' }}
               />
 
-              <div style={{ display: 'flex', gap: '12px' }}>
-                {backBtn(() => setStep(2))}
-                <button type="submit" disabled={loading || !location || !animalType} style={{ flex: 1, background: loading || !location ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white', fontWeight: 'bold', padding: '13px', borderRadius: '12px', border: 'none', cursor: loading || !location ? 'not-allowed' : 'pointer', fontSize: '15px' }}>
-                  {loading ? t('report', 'submitting') : t('report', 'submitBtn')}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={stepLoading}
+                style={{ width: '100%', background: stepLoading ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg,#EF4444,#DC2626)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: stepLoading ? 'not-allowed' : 'pointer', fontSize: '15px' }}
+              >
+                {stepLoading ? t('report', 'submitting') : '✅ סיימתי — שמור פרטים'}
+              </button>
+
+              <p style={{ color: '#475569', fontSize: '12px', textAlign: 'center', marginTop: '10px' }}>
+                הדיווח כבר נשלח — זה רק מוסיף מידע למתנדב
+              </p>
             </div>
           )}
         </form>

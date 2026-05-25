@@ -39,6 +39,8 @@ interface Report {
   handledBy?: string;
   pickedUp?: boolean;
   archived?: boolean;
+  reporterPhone?: string;
+  reporterEmail?: string;
   imageDownloadUrl?: string;
 }
 
@@ -463,6 +465,14 @@ export default function VolunteerDashboard() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '16px' }}>
               <p style={{ color: '#CBD5E1', fontSize: '14px', margin: 0 }}>🐾 {selectedReport.animalType}</p>
               <p style={{ color: '#CBD5E1', fontSize: '14px', margin: 0 }}>📍 {selectedReport.location}</p>
+              {selectedReport.reporterPhone && (
+                <div style={{ padding: '10px 14px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '10px', marginBottom: '10px' }}>
+                  <p style={{ color: '#93C5FD', fontSize: '13px', fontWeight: '700', margin: '0 0 2px' }}>📞 טלפון המדווח</p>
+                  <a href={`tel:${selectedReport.reporterPhone}`} style={{ color: 'white', fontSize: '16px', fontWeight: '800', textDecoration: 'none' }}>
+                    {selectedReport.reporterPhone}
+                  </a>
+                </div>
+              )}
               {selectedReport.stillThere !== undefined && (
                 <p style={{ color: selectedReport.stillThere ? '#6EE7B7' : '#FCA5A5', fontSize: '13px', margin: 0 }}>
                   {selectedReport.stillThere === true ? '✅ המדווח עדיין במקום' : selectedReport.stillThere === false ? '❌ המדווח עזב' : ''}
