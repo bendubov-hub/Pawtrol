@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, setDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { useLang } from '@/lib/lang-context';
 import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -90,6 +90,13 @@ export default function AdminPage() {
   const restore = async (collection_: string, id: string) => {
     setUpdatingId(id);
     await updateDoc(doc(db, collection_, id), { archived: false, archivedAt: null });
+    setUpdatingId(null);
+  };
+
+  const permanentDelete = async (collection_: string, id: string) => {
+    if (!confirm('מחיקה לצמיתות — לא ניתן לשחזר. להמשיך?')) return;
+    setUpdatingId(id);
+    await deleteDoc(doc(db, collection_, id));
     setUpdatingId(null);
   };
 
@@ -708,8 +715,12 @@ export default function AdminPage() {
                             <p style={{ color: '#94A3B8', fontWeight: '600', margin: '0 0 2px' }}>{org.name}</p>
                             <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>{org.email} | {org.city}</p>
                           </div>
-                          <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === org.id}
-                            onClick={() => restore('organizations', org.id)} />
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === org.id}
+                              onClick={() => restore('organizations', org.id)} />
+                            <ActionButton label="🗑 מחק" color="#EF4444" loading={updatingId === org.id}
+                              onClick={() => permanentDelete('organizations', org.id)} />
+                          </div>
                         </div>
                       </Card>
                     ))}
@@ -728,8 +739,12 @@ export default function AdminPage() {
                             <p style={{ color: '#94A3B8', fontWeight: '600', margin: '0 0 2px' }}>{vol.name}</p>
                             <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>{vol.email} | {vol.city}</p>
                           </div>
-                          <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === vol.id}
-                            onClick={() => restore('volunteers', vol.id)} />
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === vol.id}
+                              onClick={() => restore('volunteers', vol.id)} />
+                            <ActionButton label="🗑 מחק" color="#EF4444" loading={updatingId === vol.id}
+                              onClick={() => permanentDelete('volunteers', vol.id)} />
+                          </div>
                         </div>
                       </Card>
                     ))}
@@ -748,8 +763,12 @@ export default function AdminPage() {
                             <p style={{ color: '#94A3B8', fontWeight: '600', margin: '0 0 2px' }}>{rep.animalType}</p>
                             <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>📍 {rep.location}</p>
                           </div>
-                          <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === rep.id}
-                            onClick={() => restore('reports', rep.id)} />
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <ActionButton label="↩ שחזר" color="#3B82F6" loading={updatingId === rep.id}
+                              onClick={() => restore('reports', rep.id)} />
+                            <ActionButton label="🗑 מחק" color="#EF4444" loading={updatingId === rep.id}
+                              onClick={() => permanentDelete('reports', rep.id)} />
+                          </div>
                         </div>
                       </Card>
                     ))}
