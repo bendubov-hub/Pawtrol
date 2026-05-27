@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // 2. Email fallback if no push or as supplement
     if (reporterEmail && !sent) {
       await sendEmail(reporterEmail, `🎉 ${animalType} הוצל! — Pawtrol`,
-        html: `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"></head>
+        `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#0f172a;font-family:Arial,sans-serif">
 <div style="max-width:480px;margin:0 auto;padding:32px 16px;text-align:center">
   <h1 style="color:#10b981;font-size:32px;margin:0 0 8px">🎉</h1>
