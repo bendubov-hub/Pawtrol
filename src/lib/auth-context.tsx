@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { registerFcmToken } from './fcm';
 
 interface UserProfile {
   uid: string;
@@ -32,6 +33,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(firebaseUser);
 
       if (firebaseUser) {
+        // Register FCM token on every login so push notifications always work
+        registerFcmToken(firebaseUser.uid).catch(() => {});
+
         const orgSnap = await getDoc(doc(db, 'organizations', firebaseUser.uid));
         if (orgSnap.exists()) {
           const data = orgSnap.data();
