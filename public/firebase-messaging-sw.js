@@ -24,10 +24,19 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-// Click on notification → open app
+// Click on notification → focus existing window or open new one
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const urlToOpen = event.notification.data?.url || '/volunteer';
   event.waitUntil(
-    clients.openWindow(event.notification.data?.url || '/')
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          client.navigate(urlToOpen);
+          return client.focus();
+        }
+      }
+      return clients.openWindow(urlToOpen);
+    })
   );
 });
