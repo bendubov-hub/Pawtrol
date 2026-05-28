@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, arrayUnion, getDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, arrayUnion, getDoc, getDocs } from 'firebase/firestore';
 import { useLang } from '@/lib/lang-context';
 import { getRank } from '@/lib/ranks';
 import BottomNav from '@/components/BottomNav';
@@ -101,12 +101,13 @@ export default function VolunteerDashboard() {
 
     const q = query(
       collection(db, 'reports'),
-      where('status', 'in', ['pending', 'in_progress']),
-      orderBy('timestamp', 'desc')
+      where('status', 'in', ['pending', 'in_progress'])
     );
 
     const unsub = onSnapshot(q, async (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Report));
+      const data = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Report))
+        .sort((a, b) => (b.timestamp?.seconds ?? 0) - (a.timestamp?.seconds ?? 0));
 
       const withUrls = await Promise.all(data.map(async (r) => {
         if (!r.imageUrl) return r;
