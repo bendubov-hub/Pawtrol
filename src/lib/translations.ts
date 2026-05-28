@@ -49,7 +49,7 @@ export const translations = {
   // ─── Home ─────────────────────────────────────────────────
   home: {
     tagline:      { he: 'עזור לבעלי חיים במצוקה בקליק אחד', en: 'Help animals in distress with one click' },
-    subTagline:   { he: 'דווח, עזור, הצילו', en: 'Report, Help, Rescue' },
+    subTagline:   { he: 'דווחו, עזרו, הצילו', en: 'Report, Help, Rescue' },
     statReports:  { he: 'דיווחים', en: 'Reports' },
     statRescued:  { he: 'חיות הוצלו', en: 'Animals rescued' },
     statProgress: { he: 'בטיפול', en: 'In progress' },

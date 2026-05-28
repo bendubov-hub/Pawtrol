@@ -3,15 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLang } from '@/lib/lang-context';
+import { useAuth } from '@/lib/auth-context';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { t, lang, setLang } = useLang();
+  const { profile } = useAuth();
 
   const NAV_ITEMS = [
     { href: '/',           icon: '🏠', label: t('nav', 'home') },
     { href: '/report',     icon: '📸', label: t('nav', 'report') },
-    { href: '/volunteers', icon: '👥', label: t('nav', 'volunteers') },
+    ...(profile?.role === 'volunteer' ? [{ href: '/volunteer', icon: '🦺', label: 'דשבורד' }] : [
+      { href: '/volunteers', icon: '👥', label: t('nav', 'volunteers') },
+    ]),
     { href: '/settings',   icon: '⚙️', label: t('nav', 'settings') },
   ];
 
