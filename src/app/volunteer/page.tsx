@@ -6,6 +6,7 @@ import { signOut } from 'firebase/auth';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, arrayUnion, getDoc, getDocs } from 'firebase/firestore';
 import { useLang } from '@/lib/lang-context';
 import { getRank } from '@/lib/ranks';
+import BottomNav from '@/components/BottomNav';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -119,7 +120,7 @@ export default function VolunteerDashboard() {
 
       setReports(withUrls);
       setReportsLoading(false);
-    });
+    }, () => setReportsLoading(false));
 
     return unsub;
   }, [user]);
@@ -554,6 +555,7 @@ export default function VolunteerDashboard() {
           </div>
         </div>
       )}
+      <BottomNav />
     </div>
   );
 }

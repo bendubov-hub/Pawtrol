@@ -36,10 +36,10 @@ export default function LoginPage() {
         getDoc(doc(db, 'admins', user.uid)),
         getDoc(doc(db, 'volunteers', user.uid)),
       ]);
-      if (adminSnap.exists()) router.push('/admin');
-      else if (orgSnap.exists()) router.push('/organizations');
-      else if (volSnap.exists()) router.push('/volunteer');
-      else router.push('/dashboard');
+      if (adminSnap.exists()) router.replace('/admin');
+      else if (orgSnap.exists()) router.replace('/organizations');
+      else if (volSnap.exists()) router.replace('/volunteer');
+      else router.replace('/dashboard');
     } catch (err: any) {
       setError(err.message || 'שגיאה בהתחברות');
     } finally {
@@ -57,10 +57,10 @@ export default function LoginPage() {
         getDoc(doc(db, 'admins', user.uid)),
         getDoc(doc(db, 'volunteers', user.uid)),
       ]);
-      if (adminSnap.exists()) router.push('/admin');
-      else if (orgSnap.exists()) router.push('/organizations');
-      else if (volSnap.exists()) router.push('/volunteer');
-      else router.push('/dashboard');
+      if (adminSnap.exists()) router.replace('/admin');
+      else if (orgSnap.exists()) router.replace('/organizations');
+      else if (volSnap.exists()) router.replace('/volunteer');
+      else router.replace('/dashboard');
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user') setError(err.message || 'שגיאה');
     } finally {
