@@ -3,12 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, getCountFromServer, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
+import { db, auth } from '@/lib/firebase';
 import BottomNav from '@/components/BottomNav';
 import { useLang } from '@/lib/lang-context';
+import { useAuth } from '@/lib/auth-context';
 
 export default function Home() {
   const { t } = useLang();
+  const { user, profile } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [counts, setCounts] = useState({ total: 0, rescued: 0, inProgress: 0, volunteers: 0 });
 
@@ -55,33 +58,29 @@ export default function Home() {
       }}
     >
       {/* Top Navigation */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        marginBottom: '32px',
-        paddingTop: '16px',
-      }}>
-        <Link href="/auth/login" style={{ textDecoration: 'none' }}>
-          <button style={{
-            background: 'rgba(239, 68, 68, 0.2)',
-            color: '#FCA5A5',
-            fontWeight: 'bold',
-            padding: '10px 20px',
-            borderRadius: '8px',
-            border: '2px solid #EF4444',
-            cursor: 'pointer',
-            fontSize: '14px',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239, 68, 68, 0.3)';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239, 68, 68, 0.2)';
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', paddingTop: '16px' }}>
+        {user ? (
+          <span style={{ color: '#94A3B8', fontSize: '13px' }}>שלום, {profile?.name || user.email}</span>
+        ) : <span />}
+        {user ? (
+          <button onClick={() => signOut(auth)} style={{
+            background: 'rgba(239,68,68,0.1)', color: '#FCA5A5', fontWeight: 'bold',
+            padding: '10px 20px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)',
+            cursor: 'pointer', fontSize: '14px',
           }}>
-            {t('home', 'loginBtn')}
+            התנתק
           </button>
-        </Link>
+        ) : (
+          <Link href="/auth/login" style={{ textDecoration: 'none' }}>
+            <button style={{
+              background: 'rgba(239, 68, 68, 0.2)', color: '#FCA5A5', fontWeight: 'bold',
+              padding: '10px 20px', borderRadius: '8px', border: '2px solid #EF4444',
+              cursor: 'pointer', fontSize: '14px',
+            }}>
+              {t('home', 'loginBtn')}
+            </button>
+          </Link>
+        )}
       </div>
 
       {/* Header */}
