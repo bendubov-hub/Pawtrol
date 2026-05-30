@@ -14,7 +14,7 @@ export default function BottomNav() {
     { href: '/',         icon: '🏠', label: t('nav', 'home') },
     { href: '/report',   icon: '📸', label: t('nav', 'report') },
     { href: '/adopt',    icon: '🐾', label: 'אימוץ' },
-    { href: '/chat',     icon: '💬', label: 'מאורות' },
+    { href: '/seen',     icon: '🔍', label: 'מי ראה?' },
     { href: '/settings', icon: '⚙️', label: t('nav', 'settings') },
   ];
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 
 const CATEGORIES = [
@@ -17,6 +18,7 @@ const CATEGORIES = [
 ];
 
 export default function AdoptPage() {
+  const router = useRouter();
   const [category, setCategory] = useState('all');
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,7 @@ export default function AdoptPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             {listings.map(listing => (
-              <ListingCard key={listing.id} listing={listing} />
+              <ListingCard key={listing.id} listing={listing} onChat={() => router.push(`/chat/adopt_${listing.id}`)} />
             ))}
           </div>
         )}
@@ -92,7 +94,7 @@ export default function AdoptPage() {
   );
 }
 
-function ListingCard({ listing }: { listing: any }) {
+function ListingCard({ listing, onChat }: { listing: any; onChat: () => void }) {
   const [showPhone, setShowPhone] = useState(false);
   const catIcon = CATEGORIES.find(c => c.id === listing.type)?.icon || '🐾';
   const catLabel = CATEGORIES.find(c => c.id === listing.type)?.label || '';
@@ -120,23 +122,32 @@ function ListingCard({ listing }: { listing: any }) {
           {listing.gender && <span style={{ background: 'rgba(255,255,255,0.07)', borderRadius: '6px', padding: '2px 6px', color: '#CBD5E1', fontSize: '11px' }}>{listing.gender}</span>}
           {listing.size && <span style={{ background: 'rgba(255,255,255,0.07)', borderRadius: '6px', padding: '2px 6px', color: '#CBD5E1', fontSize: '11px' }}>{listing.size}</span>}
         </div>
-        {showPhone ? (
-          <a href={`tel:${listing.contactPhone}`} style={{
-            display: 'block', textAlign: 'center', padding: '8px',
-            background: 'rgba(16,185,129,0.15)', border: '1px solid #10B981',
-            borderRadius: '8px', color: '#6EE7B7', fontSize: '13px', fontWeight: '700', textDecoration: 'none',
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {showPhone ? (
+            <a href={`tel:${listing.contactPhone}`} style={{
+              flex: 1, textAlign: 'center', padding: '8px',
+              background: 'rgba(16,185,129,0.15)', border: '1px solid #10B981',
+              borderRadius: '8px', color: '#6EE7B7', fontSize: '12px', fontWeight: '700', textDecoration: 'none',
+            }}>
+              📞 {listing.contactPhone}
+            </a>
+          ) : (
+            <button onClick={() => setShowPhone(true)} style={{
+              flex: 1, padding: '8px',
+              background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)',
+              borderRadius: '8px', color: '#6EE7B7', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+            }}>
+              📞 קשר
+            </button>
+          )}
+          <button onClick={onChat} style={{
+            padding: '8px 12px',
+            background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)',
+            borderRadius: '8px', color: '#93C5FD', fontSize: '13px', cursor: 'pointer',
           }}>
-            📞 {listing.contactPhone}
-          </a>
-        ) : (
-          <button onClick={() => setShowPhone(true)} style={{
-            width: '100%', padding: '8px',
-            background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)',
-            borderRadius: '8px', color: '#6EE7B7', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-          }}>
-            צור קשר
+            💬
           </button>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -11,6 +11,13 @@ const ROOM_META: Record<string, { name: string; icon: string; color: string }> =
   volunteers: { name: 'מאורת המתנדבים', icon: '🦺', color: '#10B981' },
 };
 
+function getRoomMeta(roomId: string) {
+  if (ROOM_META[roomId]) return ROOM_META[roomId];
+  if (roomId.startsWith('adopt_')) return { name: 'שיחה על אימוץ', icon: '🐾', color: '#10B981' };
+  if (roomId.startsWith('seen_'))  return { name: 'שיחה על מי ראה?', icon: '🔍', color: '#F59E0B' };
+  return { name: 'שיחה', icon: '💬', color: '#3B82F6' };
+}
+
 export default function ChatRoomPage() {
   const { user, profile } = useAuth();
   const params = useParams();
