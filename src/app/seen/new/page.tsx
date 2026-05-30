@@ -37,6 +37,7 @@ export default function NewSeenPage() {
   const [city, setCity] = useState('');
   const [lastSeen, setLastSeen] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [nearAnimal, setNearAnimal] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -76,6 +77,7 @@ export default function NewSeenPage() {
       const docRef = await addDoc(collection(db, 'seen_posts'), {
         type, animalType, name, description, city, lastSeen,
         contactPhone: contactPhone || profile?.phone || '',
+        nearAnimal,
         userId: user.uid, userEmail: user.email,
         status: 'active', images: [], createdAt: serverTimestamp(),
       });
@@ -195,6 +197,36 @@ export default function NewSeenPage() {
               style={{ ...inputStyle, resize: 'vertical' }}
               placeholder={isLost ? 'צבע, גודל, סימנים מיוחדים...' : 'איפה נמצא, מצב החיה...'} />
           </div>
+
+          {/* Near animal toggle */}
+          <button
+            type="button"
+            onClick={() => setNearAnimal(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '12px',
+              padding: '14px 16px', borderRadius: '12px', cursor: 'pointer',
+              background: nearAnimal ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.05)',
+              border: `2px solid ${nearAnimal ? '#EF4444' : 'rgba(255,255,255,0.12)'}`,
+              width: '100%', textAlign: 'right',
+            }}
+          >
+            <div style={{
+              width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0,
+              background: nearAnimal ? '#EF4444' : 'rgba(255,255,255,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '14px',
+            }}>
+              {nearAnimal ? '✓' : ''}
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: nearAnimal ? '#FCA5A5' : '#94A3B8', fontWeight: '700', fontSize: '14px', margin: 0 }}>
+                📍 אני ליד החיה עכשיו
+              </p>
+              <p style={{ color: '#64748B', fontSize: '12px', margin: '2px 0 0' }}>
+                לא הצלחתי לתפוס — מחפש עזרה דחופה
+              </p>
+            </div>
+          </button>
 
           {/* Phone */}
           <div>

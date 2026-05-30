@@ -140,7 +140,7 @@ function PostCard({ post, onChat }: { post: any; onChat: () => void }) {
 
         {/* Content */}
         <div style={{ flex: 1, padding: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
             <span style={{
               padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '800',
               background: isLost ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
@@ -149,6 +149,15 @@ function PostCard({ post, onChat }: { post: any; onChat: () => void }) {
             }}>
               {isLost ? '😢 נעלם' : '🙌 נמצא'}
             </span>
+            {post.nearAnimal && (
+              <span style={{
+                padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '800',
+                background: 'rgba(239,68,68,0.25)', color: '#FCA5A5',
+                border: '1px solid #EF4444', animation: 'pulse 1.5s infinite',
+              }}>
+                📍 ליד החיה עכשיו!
+              </span>
+            )}
             <span style={{ color: '#94A3B8', fontSize: '12px' }}>{animalIcon}</span>
           </div>
 
