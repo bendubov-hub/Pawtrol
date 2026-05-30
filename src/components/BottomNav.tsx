@@ -11,12 +11,11 @@ export default function BottomNav() {
   const { profile } = useAuth();
 
   const NAV_ITEMS = [
-    { href: '/',           icon: '🏠', label: t('nav', 'home') },
-    { href: '/report',     icon: '📸', label: t('nav', 'report') },
-    ...(profile?.role === 'volunteer' ? [{ href: '/volunteer', icon: '🦺', label: 'דשבורד' }] : [
-      { href: '/volunteers', icon: '👥', label: t('nav', 'volunteers') },
-    ]),
-    { href: '/settings',   icon: '⚙️', label: t('nav', 'settings') },
+    { href: '/',         icon: '🏠', label: t('nav', 'home') },
+    { href: '/report',   icon: '📸', label: t('nav', 'report') },
+    { href: '/adopt',    icon: '🐾', label: 'אימוץ' },
+    { href: '/chat',     icon: '💬', label: 'מאורות' },
+    { href: '/settings', icon: '⚙️', label: t('nav', 'settings') },
   ];
 
   return (

@@ -170,19 +170,24 @@ export default function Home() {
       </div>
 
       {/* Secondary CTA */}
-      <div style={{ maxWidth: '500px', margin: '0 auto 0', width: '100%', paddingBottom: '16px' }}>
+      <div style={{ maxWidth: '500px', margin: '0 auto', width: '100%', paddingBottom: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* Volunteer/Org dashboard shortcut */}
+        {profile?.role === 'volunteer' && (
+          <Link href="/volunteer" style={{ textDecoration: 'none' }}>
+            <button style={{ width: '100%', background: 'rgba(16,185,129,0.1)', color: '#6EE7B7', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+              🦺 דשבורד מתנדב
+            </button>
+          </Link>
+        )}
+        {profile?.role === 'organization' && (
+          <Link href="/organizations" style={{ textDecoration: 'none' }}>
+            <button style={{ width: '100%', background: 'rgba(239,68,68,0.1)', color: '#FCA5A5', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+              🏢 דשבורד עמותה
+            </button>
+          </Link>
+        )}
         <Link href="/apply" style={{ textDecoration: 'none' }}>
-          <button style={{
-            width: '100%',
-            background: 'rgba(59,130,246,0.1)',
-            color: '#93C5FD',
-            border: '1px solid rgba(59,130,246,0.4)',
-            borderRadius: '14px',
-            padding: '13px',
-            fontSize: '15px',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
+          <button style={{ width: '100%', background: 'rgba(59,130,246,0.1)', color: '#93C5FD', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
             {t('home', 'ctaVolunteer')}
           </button>
         </Link>
