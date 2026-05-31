@@ -186,6 +186,11 @@ export default function Home() {
             </button>
           </Link>
         )}
+        <Link href="/chat" style={{ textDecoration: 'none' }}>
+          <button style={{ width: '100%', background: 'rgba(139,92,246,0.1)', color: '#C4B5FD', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+            🪺 מאורות — צ'אט קהילתי
+          </button>
+        </Link>
         <Link href="/apply" style={{ textDecoration: 'none' }}>
           <button style={{ width: '100%', background: 'rgba(59,130,246,0.1)', color: '#93C5FD', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
             {t('home', 'ctaVolunteer')}
