@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { LangProvider } from "@/lib/lang-context";
+import { ChatNotifyProvider } from "@/lib/chat-notify-context";
 import PermissionsGate from "@/components/PermissionsGate";
 import FcmListener from "@/components/FcmListener";
+import ChatToastLayer from "@/components/ChatToastLayer";
 
 export const metadata: Metadata = {
   title: "Pawtrol",
@@ -31,7 +33,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="bg-gray-50">
-        <LangProvider><AuthProvider><PermissionsGate><FcmListener />{children}</PermissionsGate></AuthProvider></LangProvider>
+        <LangProvider><AuthProvider><ChatNotifyProvider><PermissionsGate><FcmListener /><ChatToastLayer />{children}</PermissionsGate></ChatNotifyProvider></AuthProvider></LangProvider>
       </body>
     </html>
   );

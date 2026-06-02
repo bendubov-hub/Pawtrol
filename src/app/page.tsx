@@ -8,10 +8,12 @@ import { db, auth } from '@/lib/firebase';
 import BottomNav from '@/components/BottomNav';
 import { useLang } from '@/lib/lang-context';
 import { useAuth } from '@/lib/auth-context';
+import { useChatNotify } from '@/lib/chat-notify-context';
 
 export default function Home() {
   const { t } = useLang();
   const { user, profile } = useAuth();
+  const { hasUnread, markRead } = useChatNotify();
   const [mounted, setMounted] = useState(false);
   const [counts, setCounts] = useState({ total: 0, rescued: 0, inProgress: 0, volunteers: 0 });
 
@@ -186,9 +188,12 @@ export default function Home() {
             </button>
           </Link>
         )}
-        <Link href="/chat" style={{ textDecoration: 'none' }}>
-          <button style={{ width: '100%', background: 'rgba(139,92,246,0.1)', color: '#C4B5FD', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+        <Link href="/chat" style={{ textDecoration: 'none' }} onClick={markRead}>
+          <button style={{ width: '100%', background: 'rgba(139,92,246,0.1)', color: '#C4B5FD', border: `1px solid ${hasUnread ? '#A78BFA' : 'rgba(139,92,246,0.3)'}`, borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', position: 'relative' }}>
             🪺 מאורות — צ'אט קהילתי
+            {hasUnread && (
+              <span style={{ position: 'absolute', top: '10px', left: '14px', width: '10px', height: '10px', background: '#EF4444', borderRadius: '50%', border: '2px solid #0F172A' }} />
+            )}
           </button>
         </Link>
         <Link href="/apply" style={{ textDecoration: 'none' }}>
