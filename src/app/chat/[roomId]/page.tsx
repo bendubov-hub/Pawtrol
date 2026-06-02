@@ -63,6 +63,14 @@ export default function ChatRoomPage() {
         userName: profile?.name || user.email,
         createdAt: serverTimestamp(),
       });
+      // Fire-and-forget push notification (only for permanent rooms)
+      if (roomId === 'rescues' || roomId === 'volunteers') {
+        fetch('/api/notify-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, senderUid: user.uid, senderName: profile?.name || user.email, text: msg }),
+        }).catch(() => {});
+      }
     } catch {}
     setSending(false);
   };
