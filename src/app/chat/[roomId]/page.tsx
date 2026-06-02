@@ -67,6 +67,10 @@ export default function ChatRoomPage() {
     setSending(false);
   };
 
+  useEffect(() => {
+    if (user === null) router.replace(`/auth/login?redirect=/chat/${roomId}`);
+  }, [user, roomId, router]);
+
   if (!user) return null;
 
   return (

@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLang } from '@/lib/lang-context';
 
-export default function LoginPage() {
+function LoginForm() {
   const { t } = useLang();
   const [mounted, setMounted] = useState(false);
   const [email, setEmail] = useState('');
@@ -17,6 +17,8 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
 
   useEffect(() => {
     setMounted(true);
@@ -36,7 +38,8 @@ export default function LoginPage() {
         getDoc(doc(db, 'admins', user.uid)),
         getDoc(doc(db, 'volunteers', user.uid)),
       ]);
-      if (adminSnap.exists()) router.replace('/admin');
+      if (redirectTo) router.replace(redirectTo);
+      else if (adminSnap.exists()) router.replace('/admin');
       else if (orgSnap.exists()) router.replace('/organizations');
       else if (volSnap.exists()) router.replace('/volunteer');
       else router.replace('/dashboard');
@@ -57,7 +60,8 @@ export default function LoginPage() {
         getDoc(doc(db, 'admins', user.uid)),
         getDoc(doc(db, 'volunteers', user.uid)),
       ]);
-      if (adminSnap.exists()) router.replace('/admin');
+      if (redirectTo) router.replace(redirectTo);
+      else if (adminSnap.exists()) router.replace('/admin');
       else if (orgSnap.exists()) router.replace('/organizations');
       else if (volSnap.exists()) router.replace('/volunteer');
       else router.replace('/dashboard');
@@ -302,5 +306,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
