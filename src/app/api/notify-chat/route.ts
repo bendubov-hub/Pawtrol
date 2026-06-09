@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 
 const ROOM_NAMES: Record<string, string> = {
@@ -34,12 +35,32 @@ export async function POST(req: NextRequest) {
       const postId = roomId.replace('adopt_', '');
       const postDoc = await adminDb.collection('adoptions').doc(postId).get();
       const ownerUid = postDoc.data()?.userId;
-      if (ownerUid) targetUids = [ownerUid];
+      if (ownerUid) {
+        targetUids = [ownerUid];
+        // Add owner to participants so room appears in their מאורות
+        await adminDb.collection('chat_rooms').doc(roomId).set({
+          participants: FieldValue.arrayUnion(ownerUid),
+          type: 'adopt',
+          name: 'שיחה על אימוץ',
+          icon: '🐾',
+          color: '#10B981',
+        }, { merge: true });
+      }
     } else if (roomId.startsWith('seen_')) {
       const postId = roomId.replace('seen_', '');
       const postDoc = await adminDb.collection('seen_posts').doc(postId).get();
       const ownerUid = postDoc.data()?.userId;
-      if (ownerUid) targetUids = [ownerUid];
+      if (ownerUid) {
+        targetUids = [ownerUid];
+        // Add owner to participants so room appears in their מאורות
+        await adminDb.collection('chat_rooms').doc(roomId).set({
+          participants: FieldValue.arrayUnion(ownerUid),
+          type: 'seen',
+          name: 'שיחה על מי ראה?',
+          icon: '🔍',
+          color: '#F59E0B',
+        }, { merge: true });
+      }
     } else {
       return NextResponse.json({ ok: true, sent: 0 });
     }
