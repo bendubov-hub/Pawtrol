@@ -188,6 +188,13 @@ export default function Home() {
             </button>
           </Link>
         )}
+        {profile?.role === 'admin' && (
+          <Link href="/admin" style={{ textDecoration: 'none' }}>
+            <button style={{ width: '100%', background: 'rgba(239,68,68,0.12)', color: '#FCA5A5', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
+              ⚙️ פאנל ניהול
+            </button>
+          </Link>
+        )}
         <Link href="/chat" style={{ textDecoration: 'none' }} onClick={markRead}>
           <button style={{ width: '100%', background: 'rgba(139,92,246,0.1)', color: '#C4B5FD', border: `1px solid ${hasUnread ? '#A78BFA' : 'rgba(139,92,246,0.3)'}`, borderRadius: '14px', padding: '13px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', position: 'relative' }}>
             🪺 מאורות — צ'אט קהילתי

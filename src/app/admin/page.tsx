@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import Link from 'next/link';
 import { useLang } from '@/lib/lang-context';
 import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 
-type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats' | 'test' | 'archive' | 'users';
+type Tab = 'organizations' | 'volunteers' | 'reports' | 'applications' | 'add_org' | 'stats' | 'test' | 'archive' | 'users' | 'adoptions' | 'seen_posts';
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   pending:     { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
@@ -33,6 +34,8 @@ export default function AdminPage() {
   const [volunteers, setVolunteers] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
+  const [adoptions, setAdoptions] = useState<any[]>([]);
+  const [seenPosts, setSeenPosts] = useState<any[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
   const [inviteSent, setInviteSent] = useState<Record<string, boolean>>({});
@@ -72,7 +75,14 @@ export default function AdminPage() {
       setApplications(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+    const unsub5 = onSnapshot(query(collection(db, 'adoptions')), snap => {
+      setAdoptions(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+    });
+    const unsub6 = onSnapshot(query(collection(db, 'seen_posts')), snap => {
+      setSeenPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+    });
+
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); };
   }, [user]);
 
   const update = async (collection_: string, id: string, data: object) => {
@@ -206,9 +216,16 @@ export default function AdminPage() {
             <h1 style={{ fontSize: '24px', fontWeight: '900', color: 'white', margin: 0 }}>{t('admin','title')}</h1>
             <p style={{ color: '#94A3B8', fontSize: '13px', margin: '4px 0 0' }}>{t('admin','subtitle')}</p>
           </div>
-          <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.15)', color: '#FCA5A5', border: '1px solid #EF4444', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-            {t('common','logout')}
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Link href="/" style={{ textDecoration: 'none' }}>
+              <button style={{ background: 'rgba(255,255,255,0.07)', color: '#CBD5E1', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                🏠 דף הבית
+              </button>
+            </Link>
+            <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.15)', color: '#FCA5A5', border: '1px solid #EF4444', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+              {t('common','logout')}
+            </button>
+          </div>
         </div>
 
         {/* Summary stats */}
@@ -237,6 +254,8 @@ export default function AdminPage() {
              ['organizations', `${t('admin','tabOrgs')}${pendingOrgs ? ` (${pendingOrgs})` : ''}`],
              ['volunteers', `${t('admin','tabVols')}${pendingVols ? ` (${pendingVols})` : ''}`],
              ['reports', t('admin','tabReports')],
+             ['adoptions', `🐾 אימוץ (${adoptions.length})`],
+             ['seen_posts', `🔍 מי ראה? (${seenPosts.length})`],
              ['add_org', '➕ הוסף עמותה'],
              ['stats', '📊 סטטיסטיקות'],
              ['users', '👤 משתמשים'],
@@ -842,6 +861,108 @@ export default function AdminPage() {
             </div>
           );
         })()}
+
+        {/* Adoptions tab */}
+        {tab === 'adoptions' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {adoptions.length === 0 && <EmptyState label="אין פוסטי אימוץ" />}
+            {adoptions.map(post => {
+              const CATS: Record<string, string> = { dog:'🐕', cat:'🐈', rabbit:'🐇', hamster:'🐹', parrot:'🦜', other:'✨' };
+              const icon = CATS[post.type] || '🐾';
+              return (
+                <Card key={post.id}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    {post.images?.[0] ? (
+                      <img src={post.images[0]} alt="" style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '10px', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: '72px', height: '72px', background: 'rgba(255,255,255,0.07)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', flexShrink: 0 }}>{icon}</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div>
+                          <p style={{ color: 'white', fontWeight: '700', fontSize: '15px', margin: '0 0 2px' }}>{post.name || 'ללא שם'} {icon}</p>
+                          <p style={{ color: '#94A3B8', fontSize: '12px', margin: '0 0 2px' }}>📍 {post.city} · {post.contactPhone}</p>
+                          <p style={{ color: '#64748B', fontSize: '11px', margin: 0 }}>{post.userEmail}</p>
+                        </div>
+                        <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', background: post.status === 'available' ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)', color: post.status === 'available' ? '#6EE7B7' : '#94A3B8', flexShrink: 0 }}>
+                          {post.status === 'available' ? '✅ פעיל' : '🔒 לא פעיל'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <ActionButton
+                      label={post.status === 'available' ? '🔒 השהה' : '✅ הפעל'}
+                      color={post.status === 'available' ? '#F59E0B' : '#10B981'}
+                      loading={updatingId === post.id}
+                      onClick={() => update('adoptions', post.id, { status: post.status === 'available' ? 'paused' : 'available' })}
+                    />
+                    <ActionButton
+                      label="🗑 מחק"
+                      color="#EF4444"
+                      loading={updatingId === post.id}
+                      onClick={() => permanentDelete('adoptions', post.id)}
+                    />
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Seen posts tab */}
+        {tab === 'seen_posts' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {seenPosts.length === 0 && <EmptyState label="אין פוסטים של מי ראה?" />}
+            {seenPosts.map(post => {
+              const ICONS: Record<string, string> = { dog:'🐕', cat:'🐈', rabbit:'🐇', hamster:'🐹', parrot:'🦜', other:'✨' };
+              const icon = ICONS[post.animalType] || '🐾';
+              const isLost = post.type === 'lost';
+              return (
+                <Card key={post.id}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    {post.images?.[0] ? (
+                      <img src={post.images[0]} alt="" style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '10px', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: '72px', height: '72px', background: 'rgba(255,255,255,0.07)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', flexShrink: 0 }}>{icon}</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', background: isLost ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)', color: isLost ? '#FCA5A5' : '#6EE7B7' }}>
+                              {isLost ? '😢 נעלם' : '🙌 נמצא'}
+                            </span>
+                            {post.nearAnimal && <span style={{ padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', background: 'rgba(239,68,68,0.25)', color: '#FCA5A5' }}>📍 ליד החיה</span>}
+                          </div>
+                          <p style={{ color: 'white', fontWeight: '700', fontSize: '14px', margin: '0 0 2px' }}>{post.name || icon} · {post.city}</p>
+                          <p style={{ color: '#64748B', fontSize: '11px', margin: 0 }}>{post.userEmail} · {post.contactPhone}</p>
+                        </div>
+                        <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', background: post.status === 'active' ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)', color: post.status === 'active' ? '#6EE7B7' : '#94A3B8', flexShrink: 0 }}>
+                          {post.status === 'active' ? '✅ פעיל' : '🔒 לא פעיל'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <ActionButton
+                      label={post.status === 'active' ? '🔒 השהה' : '✅ הפעל'}
+                      color={post.status === 'active' ? '#F59E0B' : '#10B981'}
+                      loading={updatingId === post.id}
+                      onClick={() => update('seen_posts', post.id, { status: post.status === 'active' ? 'paused' : 'active' })}
+                    />
+                    <ActionButton
+                      label="🗑 מחק"
+                      color="#EF4444"
+                      loading={updatingId === post.id}
+                      onClick={() => permanentDelete('seen_posts', post.id)}
+                    />
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* Test tab — embed /test page inline */}
         {tab === 'test' && (
