@@ -70,6 +70,7 @@ export default function ChatRoomPage() {
         lastMessage: msg,
         lastMessageAt: serverTimestamp(),
         lastMessageUid: user.uid,
+        lastMessageSender: profile?.name || user.email,
         name: meta.name,
         icon: meta.icon,
         color: meta.color,

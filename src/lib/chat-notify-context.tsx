@@ -98,7 +98,9 @@ export function ChatNotifyProvider({ children }: { children: ReactNode }) {
     return () => unsubs.forEach(u => u());
   }, [user, profile, pathname]);
 
-  // Listen to private rooms for badge counts
+  // Listen to private rooms for badges + toasts
+  const prevLastMsg = useRef<Record<string, number>>({});
+
   useEffect(() => {
     if (!user) return;
 
@@ -113,9 +115,27 @@ export function ChatNotifyProvider({ children }: { children: ReactNode }) {
         const roomId = docSnap.id;
         if (roomId === 'rescues' || roomId === 'volunteers') return;
         const data = docSnap.data();
-        if (data.lastMessageUid === user.uid) return; // own message
+        if (data.lastMessageUid === user.uid) return;
+
         const lastMsgAt = data.lastMessageAt?.toMillis?.() ?? 0;
         const lastSeen = parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0');
+
+        // Show toast if this is a new message (not on first load)
+        const prev = prevLastMsg.current[roomId] ?? 0;
+        if (prev > 0 && lastMsgAt > prev && pathname !== `/chat/${roomId}`) {
+          const toast: ChatToast = {
+            id: `${roomId}_${lastMsgAt}`,
+            roomId,
+            roomName: data.name || (roomId.startsWith('adopt_') ? 'שיחה על אימוץ' : 'שיחה על מי ראה?'),
+            roomIcon: data.icon || (roomId.startsWith('adopt_') ? '🐾' : '🔍'),
+            senderName: data.lastMessageSender || 'מישהו',
+            text: data.lastMessage || '',
+          };
+          setToasts(prev2 => [...prev2.filter(t => t.id !== toast.id).slice(-2), toast]);
+          setTimeout(() => setToasts(p => p.filter(t => t.id !== toast.id)), 5000);
+        }
+        prevLastMsg.current[roomId] = lastMsgAt;
+
         if (lastMsgAt > lastSeen) {
           if (roomId.startsWith('adopt_')) adopt++;
           else if (roomId.startsWith('seen_')) seen++;
