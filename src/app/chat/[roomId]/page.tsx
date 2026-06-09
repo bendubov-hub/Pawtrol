@@ -69,6 +69,7 @@ export default function ChatRoomPage() {
         participants: arrayUnion(user.uid),
         lastMessage: msg,
         lastMessageAt: serverTimestamp(),
+        lastMessageUid: user.uid,
         name: meta.name,
         icon: meta.icon,
         color: meta.color,

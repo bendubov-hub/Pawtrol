@@ -4,18 +4,20 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLang } from '@/lib/lang-context';
 import { useAuth } from '@/lib/auth-context';
+import { useChatNotify } from '@/lib/chat-notify-context';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { t, lang, setLang } = useLang();
   const { profile } = useAuth();
+  const { unreadAdopt, unreadSeen } = useChatNotify();
 
   const NAV_ITEMS = [
-    { href: '/',         icon: '🏠', label: t('nav', 'home') },
-    { href: '/report',   icon: '📸', label: t('nav', 'report') },
-    { href: '/adopt',    icon: '🐾', label: 'אימוץ' },
-    { href: '/seen',     icon: '🔍', label: 'מי ראה?' },
-    { href: '/settings', icon: '⚙️', label: t('nav', 'settings') },
+    { href: '/',         icon: '🏠', label: t('nav', 'home'),    badge: 0 },
+    { href: '/report',   icon: '📸', label: t('nav', 'report'),  badge: 0 },
+    { href: '/adopt',    icon: '🐾', label: 'אימוץ',             badge: unreadAdopt },
+    { href: '/seen',     icon: '🔍', label: 'מי ראה?',           badge: unreadSeen },
+    { href: '/settings', icon: '⚙️', label: t('nav', 'settings'),badge: 0 },
   ];
 
   return (
@@ -45,9 +47,24 @@ export default function BottomNav() {
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
               padding: '6px 4px', borderRadius: '12px',
               background: isActive ? 'rgba(239,68,68,0.15)' : 'transparent',
-              transition: 'all 0.2s', cursor: 'pointer',
+              transition: 'all 0.2s', cursor: 'pointer', position: 'relative',
             }}>
-              <span style={{ fontSize: '20px', lineHeight: 1 }}>{item.icon}</span>
+              <div style={{ position: 'relative', display: 'inline-flex' }}>
+                <span style={{ fontSize: '20px', lineHeight: 1 }}>{item.icon}</span>
+                {item.badge > 0 && (
+                  <span style={{
+                    position: 'absolute', top: '-6px', right: '-8px',
+                    background: '#EF4444', color: 'white',
+                    fontSize: '10px', fontWeight: '800',
+                    minWidth: '16px', height: '16px',
+                    borderRadius: '8px', padding: '0 4px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1.5px solid rgba(15,23,42,0.9)',
+                  }}>
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
+              </div>
               <span style={{ fontSize: '11px', fontWeight: isActive ? '700' : '500', color: isActive ? '#EF4444' : '#94A3B8', transition: 'color 0.2s' }}>
                 {item.label}
               </span>
