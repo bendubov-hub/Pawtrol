@@ -16,6 +16,7 @@ export default function ChatPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
   const [privateRooms, setPrivateRooms] = useState<any[]>([]);
+  const [rulesError, setRulesError] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/auth/login');
@@ -28,12 +29,13 @@ export default function ChatPage() {
       where('participants', 'array-contains', user.uid)
     );
     const unsub = onSnapshot(q, snap => {
+      setRulesError(false);
       const rooms = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((r: any) => r.type === 'adopt' || r.type === 'seen')
         .sort((a: any, b: any) => (b.lastMessageAt?.seconds ?? 0) - (a.lastMessageAt?.seconds ?? 0));
       setPrivateRooms(rooms);
-    });
+    }, () => setRulesError(true));
     return unsub;
   }, [user]);
 
@@ -69,6 +71,17 @@ export default function ChatPage() {
             </button>
           ))}
         </div>
+
+        {/* Security rules debug */}
+        {rulesError && (
+          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #EF4444', borderRadius: '12px', padding: '14px', marginBottom: '16px' }}>
+            <p style={{ color: '#FCA5A5', fontSize: '13px', fontWeight: '700', margin: '0 0 4px' }}>⚠️ שגיאת הרשאות Firestore</p>
+            <p style={{ color: '#94A3B8', fontSize: '12px', margin: 0 }}>יש להוסיף כלל ב-Firebase Console → Firestore → Rules:</p>
+            <code style={{ display: 'block', marginTop: '8px', color: '#6EE7B7', fontSize: '11px', background: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '6px' }}>
+              {`match /chat_rooms/{roomId} {\n  allow read, write: if request.auth != null;\n}`}
+            </code>
+          </div>
+        )}
 
         {/* Private conversations */}
         {privateRooms.length > 0 && (
