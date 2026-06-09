@@ -30,6 +30,16 @@ export async function POST(req: NextRequest) {
         ...orgs.docs.map(d => d.data().uid || d.id),
         ...admins.docs.map(d => d.id),
       ];
+    } else if (roomId.startsWith('adopt_')) {
+      const postId = roomId.replace('adopt_', '');
+      const postDoc = await adminDb.collection('adoptions').doc(postId).get();
+      const ownerUid = postDoc.data()?.userId;
+      if (ownerUid) targetUids = [ownerUid];
+    } else if (roomId.startsWith('seen_')) {
+      const postId = roomId.replace('seen_', '');
+      const postDoc = await adminDb.collection('seen_posts').doc(postId).get();
+      const ownerUid = postDoc.data()?.userId;
+      if (ownerUid) targetUids = [ownerUid];
     } else {
       return NextResponse.json({ ok: true, sent: 0 });
     }
@@ -46,7 +56,7 @@ export async function POST(req: NextRequest) {
     const tokens = targetUids.map(uid => tokenMap[uid]).filter(Boolean) as string[];
     if (tokens.length === 0) return NextResponse.json({ ok: true, sent: 0 });
 
-    const roomName = ROOM_NAMES[roomId] || 'צ\'אט';
+    const roomName = ROOM_NAMES[roomId] || (roomId.startsWith('adopt_') ? 'הודעה על מודעת אימוץ 🐾' : roomId.startsWith('seen_') ? 'הודעה ב"מי ראה?" 🔍' : 'צ\'אט');
     const url = `${APP_URL}/chat/${roomId}`;
 
     await adminMessaging.sendEachForMulticast({

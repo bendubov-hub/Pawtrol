@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, setDoc, doc, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { useParams, useRouter } from 'next/navigation';
@@ -57,20 +57,29 @@ export default function ChatRoomPage() {
     setText('');
     setSending(true);
     try {
+      const meta = getRoomMeta(roomId);
       await addDoc(collection(db, 'chat_rooms', roomId, 'messages'), {
         text: msg,
         userId: user.uid,
         userName: profile?.name || user.email,
         createdAt: serverTimestamp(),
       });
-      // Fire-and-forget push notification (only for permanent rooms)
-      if (roomId === 'rescues' || roomId === 'volunteers') {
-        fetch('/api/notify-chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomId, senderUid: user.uid, senderName: profile?.name || user.email, text: msg }),
-        }).catch(() => {});
-      }
+      // Track room participants + last message for chat list
+      setDoc(doc(db, 'chat_rooms', roomId), {
+        participants: arrayUnion(user.uid),
+        lastMessage: msg,
+        lastMessageAt: serverTimestamp(),
+        name: meta.name,
+        icon: meta.icon,
+        color: meta.color,
+        type: roomId.startsWith('adopt_') ? 'adopt' : roomId.startsWith('seen_') ? 'seen' : 'public',
+      }, { merge: true }).catch(() => {});
+      // Push notification to relevant users
+      fetch('/api/notify-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, senderUid: user.uid, senderName: profile?.name || user.email, text: msg }),
+      }).catch(() => {});
     } catch {}
     setSending(false);
   };
