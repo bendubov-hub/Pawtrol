@@ -54,7 +54,24 @@ export function ChatNotifyProvider({ children }: { children: ReactNode }) {
       const roomId = pathname.replace('/chat/', '');
       if (roomId) localStorage.setItem(`pawtrol_seen_${roomId}`, Date.now().toString());
     }
+    // Visiting the adopt/seen boards marks all their private chats as read
+    if (pathname === '/adopt') {
+      localStorage.setItem('pawtrol_seen_adopt_cat', Date.now().toString());
+      setUnreadAdopt(0);
+    }
+    if (pathname === '/seen') {
+      localStorage.setItem('pawtrol_seen_seen_cat', Date.now().toString());
+      setUnreadSeen(0);
+    }
   }, [pathname]);
+
+  // Clear the OS-level app badge once there's nothing unread
+  useEffect(() => {
+    if (!('clearAppBadge' in navigator)) return;
+    if (!hasUnread && unreadAdopt === 0 && unreadSeen === 0) {
+      (navigator as any).clearAppBadge().catch(() => {});
+    }
+  }, [hasUnread, unreadAdopt, unreadSeen]);
 
   // Listen to public room messages for toasts
   useEffect(() => {
@@ -118,7 +135,11 @@ export function ChatNotifyProvider({ children }: { children: ReactNode }) {
         if (data.lastMessageUid === user.uid) return;
 
         const lastMsgAt = data.lastMessageAt?.toMillis?.() ?? 0;
-        const lastSeen = parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0');
+        const catKey = roomId.startsWith('adopt_') ? 'pawtrol_seen_adopt_cat' : 'pawtrol_seen_seen_cat';
+        const lastSeen = Math.max(
+          parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0'),
+          parseInt(localStorage.getItem(catKey) || '0')
+        );
 
         // Show toast if this is a new message (not on first load)
         const prev = prevLastMsg.current[roomId] ?? 0;

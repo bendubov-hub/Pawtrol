@@ -23,8 +23,8 @@ export default function FcmListener() {
         unsub = onMessage(messaging, (payload) => {
           playHowl();
 
-          // Show in-app toast notification
-          const { title, body } = payload.notification || {};
+          // Show in-app toast notification (data-only payload — avoids double system notification)
+          const { title, body } = payload.data || {};
           if (title) showToast(title, body || '');
         });
       } catch { /* FCM not available */ }

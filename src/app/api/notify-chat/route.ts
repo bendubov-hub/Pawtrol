@@ -82,15 +82,12 @@ export async function POST(req: NextRequest) {
 
     await adminMessaging.sendEachForMulticast({
       tokens,
-      notification: {
+      data: {
         title: roomName,
         body: `${senderName}: ${text.slice(0, 100)}`,
+        url,
+        icon: '/icon-192.png',
       },
-      webpush: {
-        fcmOptions: { link: url },
-        notification: { icon: '/icon-192.png', badge: '/icon-192.png', dir: 'rtl' },
-      },
-      data: { url },
     });
 
     return NextResponse.json({ ok: true, sent: tokens.length });

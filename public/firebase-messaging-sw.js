@@ -12,24 +12,26 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Background message handler
+// Background message handler (data-only payload — avoids Chrome's double-notification bug)
 messaging.onBackgroundMessage(payload => {
-  const { title, body, icon } = payload.notification || {};
+  const { title, body, icon, url } = payload.data || {};
   self.registration.showNotification(title || '🐾 Pawtrol', {
     body: body || 'דיווח חדש התקבל',
     icon: icon || '/icon-192.png',
     badge: '/icon-192.png',
     dir: 'rtl',
-    data: payload.data,
+    data: { url },
   });
 });
 
-// Click on notification → focus existing window or open new one
+// Click on notification → focus existing window or open new one, then clear app badge
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const urlToOpen = event.notification.data?.url || '/volunteer';
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+    (async () => {
+      if ('clearAppBadge' in self.navigator) self.navigator.clearAppBadge().catch(() => {});
+      const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of windowClients) {
         if ('focus' in client) {
           client.navigate(urlToOpen);
@@ -37,6 +39,6 @@ self.addEventListener('notificationclick', event => {
         }
       }
       return clients.openWindow(urlToOpen);
-    })
+    })()
   );
 });

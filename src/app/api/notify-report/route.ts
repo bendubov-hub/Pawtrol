@@ -70,9 +70,7 @@ async function sendPush(uid: string, title: string, body: string, url: string) {
     if (!token) return;
     await adminMessaging.send({
       token,
-      notification: { title, body },
-      webpush: { fcmOptions: { link: url }, notification: { icon: '/icon-192.png', badge: '/icon-192.png', dir: 'rtl' } },
-      data: { url },
+      data: { title, body, url, icon: '/icon-192.png' },
     });
   } catch { /* token expired / not registered */ }
 }
