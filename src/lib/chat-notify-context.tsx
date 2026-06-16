@@ -109,6 +109,7 @@ export function ChatNotifyProvider({ children }: { children: ReactNode }) {
 
   // Listen to private rooms for badges + toasts
   const prevLastMsg = useRef<Record<string, number>>({});
+  const seededRooms = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -127,6 +128,15 @@ export function ChatNotifyProvider({ children }: { children: ReactNode }) {
         if (data.lastMessageUid === user.uid) return;
 
         const lastMsgAt = data.lastMessageAt?.toMillis?.() ?? 0;
+
+        // Seed localStorage on first encounter so old messages don't show as new
+        if (!seededRooms.current.has(roomId)) {
+          seededRooms.current.add(roomId);
+          if (!localStorage.getItem(`pawtrol_seen_${roomId}`)) {
+            localStorage.setItem(`pawtrol_seen_${roomId}`, String(lastMsgAt));
+          }
+        }
+
         const lastSeen = parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0');
 
         // Show toast if this is a new message (not on first load)

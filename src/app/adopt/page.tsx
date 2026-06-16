@@ -42,7 +42,9 @@ export default function AdoptPage() {
     return unsub;
   }, [category]);
 
-  // Track which adopt chat rooms have unread messages
+  // Track which adopt chat rooms have unread messages.
+  // On first snapshot, seed localStorage for rooms with no entry — so old messages don't appear as new.
+  const seededRooms = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -57,6 +59,13 @@ export default function AdoptPage() {
         const data = docSnap.data();
         if (data.lastMessageUid === user.uid) return;
         const lastMsgAt = data.lastMessageAt?.toMillis?.() ?? 0;
+        // Seed: first time we see this room, treat current state as "already read"
+        if (!seededRooms.current.has(roomId)) {
+          seededRooms.current.add(roomId);
+          if (!localStorage.getItem(`pawtrol_seen_${roomId}`)) {
+            localStorage.setItem(`pawtrol_seen_${roomId}`, String(lastMsgAt));
+          }
+        }
         const lastSeen = parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0');
         if (lastMsgAt > lastSeen) {
           unread.add(roomId.replace('adopt_', ''));

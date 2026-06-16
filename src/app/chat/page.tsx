@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
@@ -17,6 +17,7 @@ export default function ChatPage() {
   const router = useRouter();
   const [privateRooms, setPrivateRooms] = useState<any[]>([]);
   const [rulesError, setRulesError] = useState(false);
+  const seededRooms = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!loading && !user) router.replace('/auth/login');
@@ -30,6 +31,18 @@ export default function ChatPage() {
     );
     const unsub = onSnapshot(q, snap => {
       setRulesError(false);
+      // Seed localStorage for rooms we haven't tracked yet, so old messages don't falsely show as new
+      snap.docs.forEach(d => {
+        const roomId = d.id;
+        if (roomId === 'rescues' || roomId === 'volunteers') return;
+        if (!seededRooms.current.has(roomId)) {
+          seededRooms.current.add(roomId);
+          if (!localStorage.getItem(`pawtrol_seen_${roomId}`)) {
+            const lastMsgAt = d.data().lastMessageAt?.toMillis?.() ?? 0;
+            localStorage.setItem(`pawtrol_seen_${roomId}`, String(lastMsgAt));
+          }
+        }
+      });
       const rooms = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((r: any) => r.type === 'adopt' || r.type === 'seen')
