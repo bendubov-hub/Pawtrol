@@ -92,11 +92,7 @@ export default function ChatPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {privateRooms.map((room: any) => {
                 const lastMsgAt = room.lastMessageAt?.toMillis?.() ?? 0;
-                const catKey = room.id.startsWith('adopt_') ? 'pawtrol_seen_adopt_cat' : 'pawtrol_seen_seen_cat';
-                const lastSeen = Math.max(
-                  parseInt(localStorage.getItem(`pawtrol_seen_${room.id}`) || '0'),
-                  parseInt(localStorage.getItem(catKey) || '0')
-                );
+                const lastSeen = parseInt(localStorage.getItem(`pawtrol_seen_${room.id}`) || '0');
                 const hasNew = lastMsgAt > lastSeen && room.lastMessageUid !== user?.uid;
                 return (
                   <button key={room.id} onClick={() => router.push(`/chat/${room.id}`)} style={{

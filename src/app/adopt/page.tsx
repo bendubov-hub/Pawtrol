@@ -57,10 +57,7 @@ export default function AdoptPage() {
         const data = docSnap.data();
         if (data.lastMessageUid === user.uid) return;
         const lastMsgAt = data.lastMessageAt?.toMillis?.() ?? 0;
-        const lastSeen = Math.max(
-          parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0'),
-          parseInt(localStorage.getItem('pawtrol_seen_adopt_cat') || '0')
-        );
+        const lastSeen = parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0');
         if (lastMsgAt > lastSeen) {
           unread.add(roomId.replace('adopt_', ''));
         }
