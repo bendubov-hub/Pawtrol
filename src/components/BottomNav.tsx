@@ -15,8 +15,8 @@ export default function BottomNav() {
   const NAV_ITEMS = [
     { href: '/',         icon: '🏠', label: t('nav', 'home'),    badge: 0 },
     { href: '/report',   icon: '📸', label: t('nav', 'report'),  badge: 0 },
-    { href: unreadAdopt > 0 ? '/chat' : '/adopt', icon: '🐾', label: 'אימוץ', badge: unreadAdopt },
-    { href: unreadSeen  > 0 ? '/chat' : '/seen',  icon: '🔍', label: 'מי ראה?', badge: unreadSeen },
+    { href: '/adopt', icon: '🐾', label: 'אימוץ',    badge: unreadAdopt },
+    { href: '/seen',  icon: '🔍', label: 'מי ראה?', badge: unreadSeen },
     { href: '/settings', icon: '⚙️', label: t('nav', 'settings'),badge: 0 },
   ];
 
