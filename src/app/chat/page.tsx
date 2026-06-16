@@ -90,24 +90,39 @@ export default function ChatPage() {
               שיחות פרטיות שלי
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {privateRooms.map((room: any) => (
-                <button key={room.id} onClick={() => router.push(`/chat/${room.id}`)} style={{
-                  background: 'rgba(255,255,255,0.04)', border: `1px solid ${room.color || '#3B82F6'}33`,
-                  borderRadius: '14px', padding: '14px 16px', cursor: 'pointer', textAlign: 'right',
-                  display: 'flex', alignItems: 'center', gap: '12px', width: '100%',
-                }}>
-                  <div style={{ fontSize: '28px' }}>{room.icon || '💬'}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ color: 'white', fontWeight: '600', fontSize: '14px', margin: '0 0 2px' }}>{room.name || 'שיחה'}</p>
-                    {room.lastMessage && (
-                      <p style={{ color: '#475569', fontSize: '12px', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {room.lastMessage}
-                      </p>
-                    )}
-                  </div>
-                  <span style={{ color: '#475569', fontSize: '18px' }}>←</span>
-                </button>
-              ))}
+              {privateRooms.map((room: any) => {
+                const lastMsgAt = room.lastMessageAt?.toMillis?.() ?? 0;
+                const catKey = room.id.startsWith('adopt_') ? 'pawtrol_seen_adopt_cat' : 'pawtrol_seen_seen_cat';
+                const lastSeen = Math.max(
+                  parseInt(localStorage.getItem(`pawtrol_seen_${room.id}`) || '0'),
+                  parseInt(localStorage.getItem(catKey) || '0')
+                );
+                const hasNew = lastMsgAt > lastSeen && room.lastMessageUid !== user?.uid;
+                return (
+                  <button key={room.id} onClick={() => router.push(`/chat/${room.id}`)} style={{
+                    background: hasNew ? `${room.color || '#3B82F6'}11` : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${hasNew ? (room.color || '#3B82F6') + '55' : (room.color || '#3B82F6') + '33'}`,
+                    borderRadius: '14px', padding: '14px 16px', cursor: 'pointer', textAlign: 'right',
+                    display: 'flex', alignItems: 'center', gap: '12px', width: '100%',
+                  }}>
+                    <div style={{ fontSize: '28px', position: 'relative' }}>
+                      {room.icon || '💬'}
+                      {hasNew && (
+                        <span style={{ position: 'absolute', top: '-2px', right: '-4px', width: '10px', height: '10px', background: '#EF4444', borderRadius: '50%', border: '2px solid #0F172A' }} />
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ color: hasNew ? 'white' : '#CBD5E1', fontWeight: hasNew ? '700' : '600', fontSize: '14px', margin: '0 0 2px' }}>{room.name || 'שיחה'}</p>
+                      {room.lastMessage && (
+                        <p style={{ color: hasNew ? '#94A3B8' : '#475569', fontSize: '12px', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {room.lastMessage}
+                        </p>
+                      )}
+                    </div>
+                    <span style={{ color: '#475569', fontSize: '18px' }}>←</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

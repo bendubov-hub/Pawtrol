@@ -89,14 +89,15 @@ export function ChatNotifyProvider({ children }: { children: ReactNode }) {
       );
 
       return onSnapshot(q, snap => {
-        if (!initialized.current[room.id]) {
-          initialized.current[room.id] = true;
-          return;
-        }
         if (snap.empty) return;
         const msg = snap.docs[0].data();
         if (msg.userId === user.uid) return;
         if (pathname === `/chat/${room.id}`) return;
+
+        // Only treat as new if the message arrived after the last time user saw this room
+        const msgAt: number = msg.createdAt?.toMillis?.() ?? 0;
+        const lastSeen = parseInt(localStorage.getItem(`pawtrol_seen_${room.id}`) || '0');
+        if (msgAt <= lastSeen) return;
 
         const toast: ChatToast = {
           id: `${room.id}_${snap.docs[0].id}`,

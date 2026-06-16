@@ -30,6 +30,13 @@ export default function FcmListener() {
       } catch { /* FCM not available */ }
     }
 
+    // Clear stale notifications from the OS tray when the app opens
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg =>
+        reg.getNotifications().then(notifs => notifs.forEach(n => n.close()))
+      ).catch(() => {});
+    }
+
     init();
     return () => { unsub?.(); };
   }, []);
