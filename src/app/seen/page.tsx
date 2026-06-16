@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
+import { useAuth } from '@/lib/auth-context';
 
 const ANIMAL_TYPES = [
   { id: 'all',     label: 'הכל',    icon: '🐾' },
@@ -22,7 +23,9 @@ export default function SeenPage() {
   const [animalType, setAnimalType] = useState('all');
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unreadPostIds, setUnreadPostIds] = useState<Set<string>>(new Set());
   const router = useRouter();
+  const { user } = useAuth();
 
   useEffect(() => {
     let q;
@@ -47,6 +50,34 @@ export default function SeenPage() {
 
     return unsub;
   }, [filter, animalType]);
+
+  // Track which seen chat rooms have unread messages
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'chat_rooms'),
+      where('participants', 'array-contains', user.uid)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const unread = new Set<string>();
+      snap.docs.forEach(docSnap => {
+        const roomId = docSnap.id;
+        if (!roomId.startsWith('seen_')) return;
+        const data = docSnap.data();
+        if (data.lastMessageUid === user.uid) return;
+        const lastMsgAt = data.lastMessageAt?.toMillis?.() ?? 0;
+        const lastSeen = Math.max(
+          parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0'),
+          parseInt(localStorage.getItem('pawtrol_seen_seen_cat') || '0')
+        );
+        if (lastMsgAt > lastSeen) {
+          unread.add(roomId.replace('seen_', ''));
+        }
+      });
+      setUnreadPostIds(unread);
+    }, () => {});
+    return unsub;
+  }, [user]);
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '16px 16px 100px' }}>
@@ -112,7 +143,14 @@ export default function SeenPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {posts.map(post => <PostCard key={post.id} post={post} onChat={() => router.push(`/chat/seen_${post.id}`)} />)}
+            {posts.map(post => (
+              <PostCard
+                key={post.id}
+                post={post}
+                hasUnread={unreadPostIds.has(post.id)}
+                onChat={() => router.push(`/chat/seen_${post.id}`)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -121,13 +159,17 @@ export default function SeenPage() {
   );
 }
 
-function PostCard({ post, onChat }: { post: any; onChat: () => void }) {
+function PostCard({ post, hasUnread, onChat }: { post: any; hasUnread: boolean; onChat: () => void }) {
   const [showPhone, setShowPhone] = useState(false);
   const isLost = post.type === 'lost';
   const animalIcon = { dog: '🐕', cat: '🐈', rabbit: '🐇', hamster: '🐹', parrot: '🦜', other: '✨' }[post.animalType as string] || '🐾';
 
   return (
-    <div style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${isLost ? 'rgba(239,68,68,0.25)' : 'rgba(16,185,129,0.25)'}`, borderRadius: '16px', overflow: 'hidden' }}>
+    <div style={{
+      background: hasUnread ? 'rgba(59,130,246,0.07)' : 'rgba(255,255,255,0.05)',
+      border: `1px solid ${hasUnread ? 'rgba(59,130,246,0.4)' : (isLost ? 'rgba(239,68,68,0.25)' : 'rgba(16,185,129,0.25)')}`,
+      borderRadius: '16px', overflow: 'hidden',
+    }}>
       <div style={{ display: 'flex', gap: '0' }}>
         {/* Image */}
         <div style={{ width: '110px', flexShrink: 0, background: '#1E293B', position: 'relative' }}>
@@ -176,8 +218,20 @@ function PostCard({ post, onChat }: { post: any; onChat: () => void }) {
                 📞 צור קשר
               </button>
             )}
-            <button onClick={onChat} style={{ padding: '7px 12px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '8px', color: '#93C5FD', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
+            <button onClick={onChat} style={{
+              padding: '7px 12px', position: 'relative',
+              background: hasUnread ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.1)',
+              border: `1px solid ${hasUnread ? 'rgba(59,130,246,0.6)' : 'rgba(59,130,246,0.25)'}`,
+              borderRadius: '8px', color: '#93C5FD', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+            }}>
               💬
+              {hasUnread && (
+                <span style={{
+                  position: 'absolute', top: '-5px', right: '-5px',
+                  width: '10px', height: '10px', background: '#EF4444',
+                  borderRadius: '50%', border: '2px solid #0F172A',
+                }} />
+              )}
             </button>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
+import { useAuth } from '@/lib/auth-context';
 
 const CATEGORIES = [
   { id: 'all',     label: 'הכל',     icon: '🐾' },
@@ -19,9 +20,11 @@ const CATEGORIES = [
 
 export default function AdoptPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [category, setCategory] = useState('all');
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unreadPostIds, setUnreadPostIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const q = category === 'all'
@@ -38,6 +41,34 @@ export default function AdoptPage() {
 
     return unsub;
   }, [category]);
+
+  // Track which adopt chat rooms have unread messages
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'chat_rooms'),
+      where('participants', 'array-contains', user.uid)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const unread = new Set<string>();
+      snap.docs.forEach(docSnap => {
+        const roomId = docSnap.id;
+        if (!roomId.startsWith('adopt_')) return;
+        const data = docSnap.data();
+        if (data.lastMessageUid === user.uid) return;
+        const lastMsgAt = data.lastMessageAt?.toMillis?.() ?? 0;
+        const lastSeen = Math.max(
+          parseInt(localStorage.getItem(`pawtrol_seen_${roomId}`) || '0'),
+          parseInt(localStorage.getItem('pawtrol_seen_adopt_cat') || '0')
+        );
+        if (lastMsgAt > lastSeen) {
+          unread.add(roomId.replace('adopt_', ''));
+        }
+      });
+      setUnreadPostIds(unread);
+    }, () => {});
+    return unsub;
+  }, [user]);
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '16px 16px 100px' }}>
@@ -84,7 +115,12 @@ export default function AdoptPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             {listings.map(listing => (
-              <ListingCard key={listing.id} listing={listing} onChat={() => router.push(`/chat/adopt_${listing.id}`)} />
+              <ListingCard
+                key={listing.id}
+                listing={listing}
+                hasUnread={unreadPostIds.has(listing.id)}
+                onChat={() => router.push(`/chat/adopt_${listing.id}`)}
+              />
             ))}
           </div>
         )}
@@ -94,14 +130,15 @@ export default function AdoptPage() {
   );
 }
 
-function ListingCard({ listing, onChat }: { listing: any; onChat: () => void }) {
+function ListingCard({ listing, hasUnread, onChat }: { listing: any; hasUnread: boolean; onChat: () => void }) {
   const [showPhone, setShowPhone] = useState(false);
   const catIcon = CATEGORIES.find(c => c.id === listing.type)?.icon || '🐾';
   const catLabel = CATEGORIES.find(c => c.id === listing.type)?.label || '';
 
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+      background: hasUnread ? 'rgba(59,130,246,0.07)' : 'rgba(255,255,255,0.05)',
+      border: `1px solid ${hasUnread ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.1)'}`,
       borderRadius: '16px', overflow: 'hidden',
     }}>
       <div style={{ height: '150px', background: '#1E293B', position: 'relative' }}>
@@ -141,11 +178,19 @@ function ListingCard({ listing, onChat }: { listing: any; onChat: () => void }) 
             </button>
           )}
           <button onClick={onChat} style={{
-            padding: '8px 12px',
-            background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)',
+            padding: '8px 12px', position: 'relative',
+            background: hasUnread ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.1)',
+            border: `1px solid ${hasUnread ? 'rgba(59,130,246,0.6)' : 'rgba(59,130,246,0.25)'}`,
             borderRadius: '8px', color: '#93C5FD', fontSize: '13px', cursor: 'pointer',
           }}>
             💬
+            {hasUnread && (
+              <span style={{
+                position: 'absolute', top: '-5px', right: '-5px',
+                width: '10px', height: '10px', background: '#EF4444',
+                borderRadius: '50%', border: '2px solid #0F172A',
+              }} />
+            )}
           </button>
         </div>
       </div>
