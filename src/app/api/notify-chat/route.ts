@@ -80,15 +80,30 @@ export async function POST(req: NextRequest) {
     const roomName = ROOM_NAMES[roomId] || (roomId.startsWith('adopt_') ? 'הודעה על מודעת אימוץ 🐾' : roomId.startsWith('seen_') ? 'הודעה ב"מי ראה?" 🔍' : 'צ\'אט');
     const url = `${APP_URL}/chat/${roomId}`;
 
-    await adminMessaging.sendEachForMulticast({
+    const body = `${senderName}: ${text.slice(0, 100)}`;
+    const result = await adminMessaging.sendEachForMulticast({
       tokens,
-      data: {
-        title: roomName,
-        body: `${senderName}: ${text.slice(0, 100)}`,
-        url,
-        icon: '/icon-192.png',
+      // webpush.notification: browser displays directly (no FCM SDK auto-display → no double notification)
+      // data: passed to SW/foreground onMessage for in-app toast and click URL
+      webpush: {
+        notification: { title: roomName, body, icon: '/icon-192.png', badge: '/icon-192.png', dir: 'rtl' },
+        fcmOptions: { link: url },
       },
+      data: { title: roomName, body, url, icon: '/icon-192.png', msgId: Date.now().toString() },
+      android: { priority: 'high' },
+      apns: { payload: { aps: { contentAvailable: true } } },
     });
+
+    // Remove stale tokens from Firestore so future sends don't fail silently
+    const staleUids: string[] = [];
+    result.responses.forEach((resp, i) => {
+      if (!resp.success && (resp.error?.code === 'messaging/registration-token-not-registered' ||
+          resp.error?.code === 'messaging/invalid-registration-token')) {
+        const uid = targetUids.find(u => tokenMap[u] === tokens[i]);
+        if (uid) staleUids.push(uid);
+      }
+    });
+    await Promise.all(staleUids.map(uid => adminDb.collection('fcm_tokens').doc(uid).delete()));
 
     return NextResponse.json({ ok: true, sent: tokens.length });
   } catch (err: any) {

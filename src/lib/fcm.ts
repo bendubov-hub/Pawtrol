@@ -16,6 +16,14 @@ const firebaseConfig = {
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
+async function getSwRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+  if (!('serviceWorker' in navigator)) return undefined;
+  // Reuse existing registration — avoids creating duplicate SWs
+  const existing = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+  if (existing) return existing;
+  return navigator.serviceWorker.register('/firebase-messaging-sw.js');
+}
+
 export async function registerFcmToken(uid?: string): Promise<string | null> {
   try {
     const supported = await isSupported();
@@ -23,11 +31,11 @@ export async function registerFcmToken(uid?: string): Promise<string | null> {
 
     const app = getApps()[0] || initializeApp(firebaseConfig);
     const messaging = getMessaging(app);
+    const swReg = await getSwRegistration();
 
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js'),
-    });
+    // getToken() always returns the current valid token (or a fresh one if rotated).
+    // Called on every app load via onAuthStateChanged — no separate refresh listener needed.
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
 
     if (token && uid) {
       await setDoc(doc(db, 'fcm_tokens', uid), {

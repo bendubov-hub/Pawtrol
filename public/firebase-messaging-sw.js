@@ -12,24 +12,24 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// firebase-messaging-compat replays the last FCM payload every time the SW wakes up.
-// Guard against showing the same notification twice using Cache API as a dedup store.
+// onBackgroundMessage fires for data-only messages (when webpush.notification is absent).
+// Since we now send webpush.notification, the browser displays the notification directly
+// and onBackgroundMessage fires only if there's also a data payload with no notification.
+// We use this purely as a safety net for any data-only fallback messages.
 messaging.onBackgroundMessage(async payload => {
-  const { title, body, icon, url } = payload.data || {};
+  // If there's a webpush notification, the browser already displayed it — skip.
+  // We deduplicate via msgId so SW replays on restart don't re-show old notifications.
+  const msgId = payload.data?.msgId;
+  if (!msgId) return; // no msgId = browser already handled via webpush.notification
 
-  // Build a stable key from the message content
-  const msgKey = `${title}|${body}|${url}`;
-  const cacheKey = new Request(`https://pawtrol-notif-dedup/${encodeURIComponent(msgKey)}`);
-
+  const cacheKey = new Request(`https://pawtrol-notif-dedup/${encodeURIComponent(msgId)}`);
   const cache = await caches.open('pawtrol-notif-dedup');
-  const already = await cache.match(cacheKey);
-  if (already) return; // already shown — skip
+  if (await cache.match(cacheKey)) return; // already shown
 
-  // Mark as shown; expire after 30 minutes via a timestamp response
-  const expiresAt = Date.now() + 30 * 60 * 1000;
+  const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
   await cache.put(cacheKey, new Response(String(expiresAt)));
 
-  // Prune expired entries so the cache doesn't grow forever
+  // Prune expired entries
   const keys = await cache.keys();
   for (const key of keys) {
     const res = await cache.match(key);
@@ -37,6 +37,7 @@ messaging.onBackgroundMessage(async payload => {
     if (Date.now() > exp) cache.delete(key);
   }
 
+  const { title, body, icon, url } = payload.data || {};
   self.registration.showNotification(title || '🐾 Pawtrol', {
     body: body || 'דיווח חדש התקבל',
     icon: icon || '/icon-192.png',
@@ -46,10 +47,10 @@ messaging.onBackgroundMessage(async payload => {
   });
 });
 
-// Click on notification → focus existing window or open new one, then clear app badge
+// Click on notification → navigate and clear app badge
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || '/volunteer';
+  const urlToOpen = event.notification.data?.url || '/';
   event.waitUntil(
     (async () => {
       if ('clearAppBadge' in self.navigator) self.navigator.clearAppBadge().catch(() => {});
